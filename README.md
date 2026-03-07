@@ -24,6 +24,10 @@ Constructs the strongest possible counter-argument to a position, then evaluates
 
 Applies the Just-in-Time Learning framework to rapidly understand any new technology. Produces a structured five-page report grounded in Bloom's Taxonomy, progressing from a hard JIT boundary through functional decomposition to an ELI5 mental model.
 
+### Commit
+
+Automates git commits with a user-provided summary as the first line and an auto-generated bullet-point body summarizing key changes. Stages files individually (never `git add .`) and skips secrets and `.vscode/`.
+
 ## Slash Commands
 
 | Command            | Description               |
@@ -34,11 +38,11 @@ Applies the Just-in-Time Learning framework to rapidly understand any new techno
 
 ## Installation
 
-Copy or symlink the `claude/` directory into your project root. Claude Code will automatically pick up the skills and commands.
+Copy or symlink the `.claude/` directory into your project root. Claude Code will automatically pick up the skills and commands.
 
 ```text
 your-project/
-├── claude/
+├── .claude/
 │   ├── commands/
 │   │   └── debate/
 │   │       ├── review.md
@@ -48,7 +52,8 @@ your-project/
 │       ├── adversarial-review/
 │       ├── red-team/
 │       ├── steelman/
-│       └── jit-learning/
+│       ├── jit-learning/
+│       └── commit/
 ```
 
 ## Release Notes
