@@ -1,0 +1,72 @@
+# -----------------------------------------------
+# MAC OS Filesystem
+# General
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+Icon
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# -----------------------------------------------
+# AI working files
+tasks/
+
+# -----------------------------------------------
+# Project standards
+.env*
+!.env.example
+env/
+.docker_build/
+bin/
+out/
+#vendor/*/
+certs/
+
+
+# -----------------------------------------------
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform.tfstate.lock.info
+# Module directory
+.terraform/
+
+# -----------------------------------------------
+# Python
+__pycache__/
+.venv
+results/
+
+# -----------------------------------------------
+# Firebase
+.firebase
+firestore-debug.log
+
+# -----------------------------------------------
+# TypeScript / Node.js
+node_modules/
+dist/
+*.tsbuildinfo
+
+
+# -----------------------------------------------
+# Project specific
+.mcp.json
