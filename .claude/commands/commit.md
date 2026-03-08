@@ -1,11 +1,3 @@
----
-name: commit
-description: Create a git commit with a user-provided summary and auto-generated body
-disable-model-invocation: true
-argument-hint: <short description>
-allowed-tools: Bash(git *), Grep, Glob, Read
----
-
 Create a git commit using the following steps:
 
 1. Run `git status` (never use -uall) and `git diff` to review all changes.
