@@ -9,6 +9,7 @@
 			"Bash(open */visualizations/index.html)",
 			"Bash(open */visualizations/interactive.html)",
 			"Bash(open */visualizations/deep-dive.html)",
+			"Bash(xmllint *)",
 			"Bash(go build:*)",
 			"Bash(go test:*)",
 			"Bash(go vet:*)",
