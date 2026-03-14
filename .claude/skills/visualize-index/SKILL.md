@@ -1,20 +1,25 @@
 ---
 name: visualize-index
 description: >-
-  Build or rebuild a root-level index.html that stitches together all visualization
-  folders into a dark-themed gallery with 3-column grid, aligned rows, and 3 links
-  per card (Overview, Interactive, Deep Dive). Sorts projects alphabetically.
-  Use when the user says "build the index", "rebuild the index", "update the
-  visualization index", or "visualize-index".
+  Build or rebuild index.html inside the visualizations/ subfolder, stitching
+  together all project folders into a dark-themed gallery with 3-column grid,
+  aligned rows, and 3 links per card (Overview, Interactive, Deep Dive). Sorts
+  projects alphabetically. Use when the user says "build the index", "rebuild
+  the index", "update the visualization index", or "visualize-index".
 allowed-tools: Read, Grep, Glob, Bash, Write, Edit, Agent
 ---
 
 # Visualize Index Skill
 
-Generate (or regenerate) a root-level `index.html` that serves as a gallery landing
-page for all codebase visualization folders in the current directory. This skill is
-idempotent — running it again after adding new folders simply replaces `index.html`
-with an updated version.
+Generate (or regenerate) `visualizations/index.html` and `visualizations/README.md`
+that serve as a gallery landing page for all project folders inside the
+`visualizations/` directory. Each subfolder under `visualizations/` represents a
+separate project's visualization output. This skill is idempotent — running it
+again after adding new folders simply replaces the files with updated versions.
+
+**Working directory:** All discovery, metadata extraction, and output happens
+relative to the `visualizations/` subfolder of the repository root. The generated
+`index.html` and `README.md` are written to `visualizations/`, not the repo root.
 
 ## Templates
 
@@ -37,18 +42,22 @@ alter the table format in README templates.
 
 ## Step 1: Discover Visualization Folders
 
-Scan the current working directory for subdirectories that contain visualization
-output. A valid visualization folder must contain **at least** `slide_01_eli5.svg`
-and `index.html`.
+Scan the `visualizations/` subfolder of the repository root for subdirectories
+that contain visualization output. A valid visualization folder must contain
+**at least** `slide_01_eli5.svg` and `index.html`.
 
 ```bash
-# Find all visualization folders
-for d in */; do
+# Find all visualization folders inside visualizations/
+for d in visualizations/*/; do
   [ -f "$d/slide_01_eli5.svg" ] && [ -f "$d/index.html" ] && echo "$d"
 done
 ```
 
 Sort the discovered folders **alphabetically** (case-insensitive).
+
+All paths in subsequent steps are relative to `visualizations/`. For example,
+a folder discovered as `visualizations/workflow-api/` is referred to as
+`workflow-api` in card links and README rows.
 
 ---
 
@@ -114,8 +123,8 @@ If `deep-dive.md` exists but `deep-dive.html` does not, generate the HTML versio
 
 ## Step 3: Generate Missing deep-dive.html Files
 
-For any folder that has `deep-dive.md` but no `deep-dive.html`, convert the
-markdown to a styled HTML page. Use this approach:
+For any folder under `visualizations/` that has `deep-dive.md` but no
+`deep-dive.html`, convert the markdown to a styled HTML page. Use this approach:
 
 - Dark theme matching the rest of the site (`#0f172a` background)
 - Sticky breadcrumb nav: All Projects / {Component} / Deep Dive
@@ -127,7 +136,7 @@ write the HTML directly for a single file.
 
 ---
 
-## Step 4: Generate index.html
+## Step 4: Generate visualizations/index.html
 
 1. Read `templates/index.html` and `templates/card.html` from this skill's directory.
 2. For each discovered folder (sorted alphabetically by display name), populate a
@@ -161,7 +170,7 @@ If no name, use: "Interactive architecture diagrams and deep-dive documentation.
 
 ---
 
-## Step 4b: Generate README.md
+## Step 4b: Generate visualizations/README.md
 
 Using the **same metadata** extracted in Steps 1-2 (and the same project name /
 description from Step 4):
@@ -185,11 +194,11 @@ description from Step 4):
 
 ## Step 5: Validate
 
-1. Verify the generated `index.html` is well-formed HTML
-2. Verify the generated `README.md` has a valid markdown table (header + separator
-   + one row per project)
+1. Verify the generated `visualizations/index.html` is well-formed HTML
+2. Verify the generated `visualizations/README.md` has a valid markdown table
+   (header + separator + one row per project)
 3. Verify all linked files exist (`index.html`, `interactive.html`, `deep-dive.html`
-   in each folder)
+   in each subfolder under `visualizations/`)
 4. Report a summary: how many projects were indexed, any missing files
 
 ---
