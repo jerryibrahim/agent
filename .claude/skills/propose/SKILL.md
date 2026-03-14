@@ -1,3 +1,13 @@
+---
+name: propose
+description: >-
+  Deep-analyze a topic and propose 2-4 implementation options with pros, cons,
+  effort, and risk. Use when the user says "propose", "analyze options for",
+  "how should we implement", or wants to evaluate approaches before committing.
+argument-hint: <task ID (e.g. C3, M4) or freeform topic description>
+allowed-tools: Read, Grep, Glob, Bash(git diff *), Bash(git log *), Bash(git show *), Agent
+---
+
 Deep-analyze the topic "$ARGUMENTS" and propose implementation options.
 
 ## Instructions
@@ -25,7 +35,7 @@ Deep-analyze the topic "$ARGUMENTS" and propose implementation options.
 
 5. **Output format.** Present as:
 
-```
+```text
 ## Analysis: <topic>
 
 ### Context

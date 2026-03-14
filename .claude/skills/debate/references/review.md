@@ -1,29 +1,13 @@
----
-name: adversarial-review
-description: >-
-    Structured adversarial review of code, designs, or documents using a three-pass
-    Advocate/Critic/Judge debate. Use when the user asks for a thorough review,
-    wants to stress-test a design decision, or says "debate this", "argue against this",
-    or "adversarial review".
-argument-hint: <file, directory, or description of what to review>
-allowed-tools: Read, Grep, Glob, Bash(git diff *), Bash(git log *), Bash(git show *)
----
+# Adversarial Review — Three-Pass Methodology
 
 Run a structured adversarial review using three distinct analytical passes. Each pass
 uses a different cognitive frame to surface issues that a single-perspective review
 would miss.
 
-**Input**: `$ARGUMENTS` — a file path, directory, git diff range, or description of
-what to review. If nothing is provided, ask the user what they want reviewed.
-
----
-
-## Why This Works
-
 Single-perspective review suffers from Degeneration-of-Thought: once you form an
 opinion, self-reflection reinforces it rather than challenging it (Liang et al. 2023).
-This skill separates the analytical work into three passes with distinct roles and
-cognitive frames, forcing genuine tension between perspectives.
+This methodology separates the analytical work into three passes with distinct roles
+and cognitive frames, forcing genuine tension between perspectives.
 
 ---
 

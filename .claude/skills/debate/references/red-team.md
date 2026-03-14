@@ -1,19 +1,7 @@
----
-name: red-team
-description: >-
-  Adversarial failure analysis that assumes the target will break and finds how.
-  Use when the user asks to "red team this", "break this", "find how this fails",
-  "security review", or wants a focused attack-oriented review.
-argument-hint: <file, directory, or description of what to attack>
-allowed-tools: Read, Grep, Glob, Bash(git diff *), Bash(git log *), Bash(git show *)
----
+# Red Team — Attack-Oriented Failure Analysis
 
-Conduct a red team analysis. You are not reviewing — you are attacking. Your objective
-is to find the failure modes that would cause this system to break under real-world
-conditions.
-
-**Input**: `$ARGUMENTS` — a file path, directory, git diff range, or description of
-what to attack. If nothing is provided, ask the user what they want red-teamed.
+You are not reviewing — you are attacking. Your objective is to find the failure modes
+that would cause this system to break under real-world conditions.
 
 ---
 
@@ -156,7 +144,8 @@ Instead of: "You might want to consider adding input validation here"
 Write: "Line 47 accepts unbounded string input. A 10MB payload crashes the parser."
 
 Instead of: "This could potentially have concurrency issues"
-Write: "The map at line 23 is read/written from multiple goroutines without a mutex. Under concurrent requests, this panics with a concurrent map write."
+Write: "The map at line 23 is read/written from multiple goroutines without a mutex.
+Under concurrent requests, this panics with a concurrent map write."
 
 If you cannot state it as a fact with a code reference, remove it. Speculation dressed
 as a finding wastes the reader's time and erodes trust in the real findings.

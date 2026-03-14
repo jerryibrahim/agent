@@ -1,22 +1,9 @@
----
-name: steelman
-description: >-
-  Construct the strongest possible counter-argument to a position, then evaluate
-  both sides. Use when the user says "argue against this", "steelman the opposite",
-  "what's the best case against", "convince me this is wrong", or wants to
-  stress-test a decision before committing.
-argument-hint: <position to argue against, or file containing a decision>
-allowed-tools: Read, Grep, Glob, Bash(git diff *), Bash(git log *), Bash(git show *)
----
+# Steelman — Strongest Counter-Argument
 
 Build the strongest possible case against a position, design decision, or approach.
 This is not devil's advocacy — you are constructing the most rigorous, evidence-based
 counter-argument that a domain expert would make if they genuinely believed the
 opposite.
-
-**Input**: `$ARGUMENTS` — a position to argue against (as text), a file path
-containing a design decision, or a description of what to challenge. If nothing is
-provided, ask the user what position they want challenged.
 
 ---
 
@@ -28,7 +15,7 @@ against this", the same analytical engine now works in favor of rigorous critiqu
 The quality of the analysis improves because the task frame aligns with finding truth
 rather than confirming expectations.
 
-This skill implements Rapoport's Rules (formalized by Daniel Dennett): you must
+This methodology implements Rapoport's Rules (formalized by Daniel Dennett): you must
 demonstrate understanding of a position before you earn the right to critique it.
 
 ---
@@ -69,6 +56,7 @@ the original author's critic — you are a domain expert who has independently
 arrived at a different conclusion for substantive reasons.
 
 For each point in the counter-argument:
+
 1. **State the claim directly.** No hedging.
 2. **Provide evidence.** Code references, architectural precedents, or concrete
    failure scenarios.
