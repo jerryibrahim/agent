@@ -448,7 +448,7 @@ function animateStep() {
   g.appendChild(line);
 
   // Label with background pill
-  const mx = (fx + tx) / 2, my = (fy + ty) / 2 - 10;
+  const mx = (fx + tx) / 2, my = (fy + ty) / 2 - 15;
   const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
   text.setAttribute("x", mx); text.setAttribute("y", my);
   text.setAttribute("font-family", "'JetBrains Mono', monospace");
@@ -469,8 +469,9 @@ function animateStep() {
   pill.setAttribute("width", bbox.width + pad * 2);
   pill.setAttribute("height", bbox.height + 6);
   pill.setAttribute("rx", "4");
-  pill.setAttribute("fill", "#0a0e1a");
-  pill.setAttribute("fill-opacity", "0.9");
+  pill.setAttribute("fill", "#111827");
+  pill.setAttribute("stroke", fromActor.color);
+  pill.setAttribute("stroke-width", "1");
   g.insertBefore(pill, text);
 
   // Animate dot
