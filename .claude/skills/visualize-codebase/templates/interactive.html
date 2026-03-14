@@ -173,6 +173,7 @@
   }
   .ctrl-btn:hover { border-color: var(--blue); color: var(--blue); }
   .ctrl-btn.active { background: var(--blue); border-color: var(--blue); }
+  #playBtn { width: 120px; text-align: center; }
   .progress {
     display: flex;
     gap: 6px;
@@ -426,9 +427,9 @@ function animateStep() {
   const fx = fromActor.x + 70, fy = fromActor.y + 35;
   const tx = toActor.x + 70, ty = toActor.y + 35;
 
-  // Fade old messages
+  // Fade out previous messages completely
   svg.querySelectorAll(".msg-group").forEach(g => {
-    gsap.to(g, { opacity: 0.15, duration: 0.3 });
+    gsap.to(g, { opacity: 0, duration: 0.5 });
   });
 
   // Create message group
@@ -446,7 +447,7 @@ function animateStep() {
   line.setAttribute("marker-end", "url(#arrowhead)");
   g.appendChild(line);
 
-  // Label
+  // Label with background pill
   const mx = (fx + tx) / 2, my = (fy + ty) / 2 - 10;
   const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
   text.setAttribute("x", mx); text.setAttribute("y", my);
@@ -458,6 +459,19 @@ function animateStep() {
   g.appendChild(text);
 
   svg.appendChild(g);
+
+  // Measure text and insert background pill behind it
+  const bbox = text.getBBox();
+  const pad = 8;
+  const pill = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  pill.setAttribute("x", bbox.x - pad);
+  pill.setAttribute("y", bbox.y - 3);
+  pill.setAttribute("width", bbox.width + pad * 2);
+  pill.setAttribute("height", bbox.height + 6);
+  pill.setAttribute("rx", "4");
+  pill.setAttribute("fill", "#0a0e1a");
+  pill.setAttribute("fill-opacity", "0.9");
+  g.insertBefore(pill, text);
 
   // Animate dot
   const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
@@ -541,6 +555,15 @@ function togglePlay() {
   if (isPlaying) {
     stopPlay();
   } else {
+    const s = SCENARIOS[currentScenario];
+    if (currentStep >= s.steps.length - 1) {
+      // Reset to beginning and start playing
+      currentStep = -1;
+      renderCanvas();
+      renderProgress();
+      renderState();
+      renderNarration();
+    }
     startPlay();
   }
 }
@@ -555,8 +578,14 @@ function startPlay() {
 function stopPlay() {
   isPlaying = false;
   clearTimeout(playTimer);
-  document.getElementById("playBtn").innerHTML = "&#9654; Play";
-  document.getElementById("playBtn").classList.remove("active");
+  const s = SCENARIOS[currentScenario];
+  const btn = document.getElementById("playBtn");
+  btn.classList.remove("active");
+  if (currentStep >= s.steps.length - 1) {
+    btn.innerHTML = "&#8635; Play Again";
+  } else {
+    btn.innerHTML = "&#9654; Play";
+  }
 }
 
 function playNext() {
