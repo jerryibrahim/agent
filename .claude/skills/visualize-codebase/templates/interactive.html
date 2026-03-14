@@ -573,6 +573,10 @@ function startPlay() {
   isPlaying = true;
   document.getElementById("playBtn").innerHTML = "&#9724; Pause";
   document.getElementById("playBtn").classList.add("active");
+  // Dim all actors to 40% so the active message pill stands out
+  document.querySelectorAll("#canvas .actor").forEach(a => {
+    gsap.to(a, { opacity: 0.4, duration: 0.3 });
+  });
   playNext();
 }
 
