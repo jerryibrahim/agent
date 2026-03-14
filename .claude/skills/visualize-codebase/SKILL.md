@@ -46,37 +46,37 @@ Capture findings as internal notes before proceeding to generation.
 
 ## Phase 1: Static SVG Infographics
 
-Write a Python script (`visualizations/generate_visuals.py`) that generates 10-12 SVG
-files. The script must have **zero pip dependencies** — use only Python stdlib (`xml.sax.saxutils`
-for escaping, `os` for file I/O, string formatting for SVG construction).
+Generate 10-12 SVG files using the **data-driven template** at
+`templates/generate_visuals.py` (relative to this skill file). The template contains
+all helper functions and rendering logic — you only need to fill in the `DATA` dict
+with project-specific content from Phase 0 exploration.
 
-### Script structure
+### How to use the template
 
-```python
-# visualizations/generate_visuals.py
-import os
-from xml.sax.saxutils import escape
+1. Copy `templates/generate_visuals.py` to the project's visualization directory
+   (e.g., `visualizations/<project>/generate_visuals.py`).
+2. Replace the `DATA` dict (everything below the `#### PROJECT DATA ####` marker)
+   with project-specific data. Each key (1-11) maps to one slide's data dict.
+3. Do **NOT** modify anything above the marker — helpers and renderers are shared.
 
-OUTPUT_DIR = os.path.join(os.path.dirname(__file__))
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+The template has **zero pip dependencies** — only Python stdlib.
 
-# Helper functions
-def title_bar(title, subtitle, width=1200, accent="#3b82f6"): ...
-def text_block(lines, x, y, font_size=16, color="#e2e8f0", line_height=24): ...
-def write_svg(filename, content, width=1200, height=900): ...
+### DATA dict structure
 
-# One function per slide returning SVG body content
-def slide_01_eli5(): ...
-def slide_02_system_context(): ...
-# ... etc
+Each slide number maps to a data dict consumed by its renderer. The key fields for
+each slide type are documented in the template's placeholder DATA. Key patterns:
 
-# Main
-if __name__ == "__main__":
-    slides = [slide_01_eli5, slide_02_system_context, ...]
-    for fn in slides:
-        fn()
-    print(f"Generated {len(slides)} slides in {OUTPUT_DIR}/")
-```
+- **Slide 1 (ELI5)**: `analogy_lines`, `cards` (name, metaphor, desc, color, path_hint)
+- **Slide 2 (System Context)**: `boxes` (id, label, sub, x, y, w, h, color), `connections` (from_xy, to_xy, color, label)
+- **Slide 3 (Architecture Layers)**: `layers` (label, description, color)
+- **Slide 4 (Domain Model)**: `entities` (name, fields, x, y, w, h, color), `relationships` (from_xy, to_xy, label, color)
+- **Slide 5 (Request Lifecycle)**: `steps` (label, description, color)
+- **Slide 6 (Routing)**: `routes` (name, triggers, color), `detail_panels` (title, lines)
+- **Slide 7 (State Machines)**: `machines` (name, color, states, transitions, outcomes, details)
+- **Slide 8 (Database Schema)**: `tables` (name, fields, color, x, y, w, h), `artifacts` (optional)
+- **Slide 9 (API Routes)**: `groups` (name, color, routes), `extra_section` (optional)
+- **Slide 10 (Code Structure)**: `tree` (name, desc, color, indent), `stats` (optional)
+- **Slide 11 (Config)**: `panels` (title, color, x, y, w, h, items), `conventions` (optional)
 
 ### Slide sequence (altitude descent)
 
