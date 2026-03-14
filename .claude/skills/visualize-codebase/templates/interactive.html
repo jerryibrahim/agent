@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{PROJECT_NAME}} — Interactive Walkthrough</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --border: #1e293b;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --blue: #3b82f6;
+    --green: #10b981;
+    --purple: #8b5cf6;
+    --orange: #f97316;
+    --pink: #ec4899;
+    --cyan: #06b6d4;
+    --red: #ef4444;
+    --yellow: #eab308;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* Top bar */
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .topbar h1 { font-size: 16px; font-weight: 600; white-space: nowrap; }
+  .tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    flex: 1;
+    padding: 2px 0;
+  }
+  .tab {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    transition: all 0.2s;
+  }
+  .tab:hover { border-color: var(--muted); color: var(--text); }
+  .tab.active { border-color: var(--blue); color: var(--blue); background: rgba(59,130,246,0.1); }
+
+  /* Main layout */
+  .content {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* SVG canvas */
+  .canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+  .canvas-wrap svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Actor boxes */
+  .actor {
+    cursor: default;
+  }
+  .actor rect {
+    transition: filter 0.3s;
+  }
+  .actor:hover rect {
+    filter: brightness(1.2);
+  }
+
+  /* State inspector */
+  .inspector {
+    width: 280px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    padding: 16px;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .inspector h3 {
+    font-size: 13px;
+    text-transform: uppercase;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    margin-bottom: 12px;
+  }
+  .state-item {
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    background: var(--bg);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 12px;
+    transition: border-color 0.3s;
+  }
+  .state-item.highlight { border-color: var(--blue); }
+  .state-key {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+  .state-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+    word-break: break-all;
+  }
+
+  /* Bottom bar */
+  .bottom {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 16px 20px;
+    flex-shrink: 0;
+  }
+  .narration {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+  .narration-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 0;
+  }
+  .narration-detail {
+    font-size: 13px;
+    color: var(--muted);
+    flex: 1;
+    min-width: 0;
+  }
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .ctrl-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+  .ctrl-btn:hover { border-color: var(--blue); color: var(--blue); }
+  .ctrl-btn.active { background: var(--blue); border-color: var(--blue); }
+  .progress {
+    display: flex;
+    gap: 6px;
+    flex: 1;
+    align-items: center;
+    overflow-x: auto;
+    padding: 2px 0;
+  }
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--border);
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .dot.done { background: var(--blue); opacity: 0.6; }
+  .dot.current { background: var(--blue); transform: scale(1.3); }
+  .dot:hover { transform: scale(1.4); }
+  .controls-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .speed-group {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .speed-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    transition: all 0.15s;
+  }
+  .speed-btn:first-child { border-radius: 4px 0 0 4px; }
+  .speed-btn:last-child { border-radius: 0 4px 4px 0; }
+  .speed-btn.active { background: var(--blue); border-color: var(--blue); color: white; }
+  .speed-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .kbd-hints {
+    font-size: 13px;
+    color: #64748b;
+    white-space: nowrap;
+  }
+  .kbd-hints kbd {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #64748b;
+  }
+  .step-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>{{PROJECT_NAME}} Walkthrough</h1>
+  <div class="tabs" id="scenarioTabs"></div>
+</div>
+
+<div class="content">
+  <div class="canvas-wrap">
+    <svg id="canvas" viewBox="0 0 900 600" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8"/>
+        </marker>
+      </defs>
+    </svg>
+  </div>
+  <div class="inspector">
+    <h3>State Inspector</h3>
+    <div id="statePanel"></div>
+  </div>
+</div>
+
+<div class="bottom">
+  <div class="narration">
+    <div class="narration-title" id="narTitle">Select a scenario to begin</div>
+    <div class="narration-detail" id="narDetail"></div>
+  </div>
+  <div class="controls-wrap">
+    <div class="controls">
+      <button class="ctrl-btn" id="playBtn" onclick="togglePlay()">&#9654; Play</button>
+      <button class="ctrl-btn" onclick="stepBack()">&#9664; Prev</button>
+      <button class="ctrl-btn" onclick="stepForward()">Next &#9654;</button>
+      <span class="step-label" id="stepLabel">0 / 0</span>
+      <div class="progress" id="progressBar"></div>
+    </div>
+    <div class="speed-row">
+      <div class="speed-group" id="speedGroup"></div>
+      <span class="kbd-hints"><kbd>Space</kbd> play/pause &nbsp; <kbd>&larr;</kbd> prev &nbsp; <kbd>&rarr;</kbd> next</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Scenario data ───────────────────────────────────────────────────────────
+// Replace this placeholder with actual scenarios derived from codebase exploration.
+const SCENARIOS = [
+  {
+    id: "primary-flow",
+    label: "Primary Flow",
+    color: "#3b82f6",
+    actors: [
+      { id: "user", label: "User", sub: "Client", x: 30, y: 250, color: "#3b82f6" },
+      { id: "api", label: "API", sub: "Server", x: 300, y: 150, color: "#10b981" },
+      { id: "db", label: "Database", sub: "Storage", x: 600, y: 250, color: "#8b5cf6" },
+    ],
+    steps: [
+      {
+        from: "user", to: "api",
+        label: "POST /v1/resource",
+        narration: "User creates a resource",
+        detail: "Description of what happens in this step.",
+        state: { status: "pending", action: "create" }
+      },
+      {
+        from: "api", to: "db",
+        label: "INSERT INTO resources",
+        narration: "Persist to database",
+        detail: "Description of what happens in this step.",
+        state: { status: "writing", table: "resources" }
+      },
+      {
+        from: "db", to: "api",
+        label: "OK (row created)",
+        narration: "Database confirms write",
+        detail: "Description of what happens in this step.",
+        state: { status: "confirmed", id: "res_123" }
+      },
+      {
+        from: "api", to: "user",
+        label: "201 Created",
+        narration: "Success response returned",
+        detail: "Description of what happens in this step.",
+        state: { status: "complete", id: "res_123" }
+      },
+    ]
+  },
+];
+
+// ── App state ───────────────────────────────────────────────────────────────
+let currentScenario = 0;
+let currentStep = -1;
+let isPlaying = false;
+let playTimer = null;
+let speed = 1;
+const STEP_DURATION = 2000;
+
+// ── Render functions ────────────────────────────────────────────────────────
+function renderTabs() {
+  const el = document.getElementById("scenarioTabs");
+  el.innerHTML = SCENARIOS.map((s, i) =>
+    `<div class="tab ${i === currentScenario ? 'active' : ''}" onclick="switchScenario(${i})" style="border-color: ${i === currentScenario ? s.color : ''}">${s.label}</div>`
+  ).join("");
+}
+
+function renderCanvas() {
+  const s = SCENARIOS[currentScenario];
+  const svg = document.getElementById("canvas");
+
+  // Keep defs, clear rest
+  const defs = svg.querySelector("defs").outerHTML;
+  svg.innerHTML = defs;
+
+  // Draw actors
+  s.actors.forEach(a => {
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.setAttribute("class", "actor");
+    g.setAttribute("id", `actor-${a.id}`);
+    g.innerHTML = `
+      <rect x="${a.x}" y="${a.y}" width="140" height="70" rx="10" fill="#111827" stroke="${a.color}" stroke-width="2"/>
+      <text x="${a.x + 70}" y="${a.y + 30}" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="${a.color}" text-anchor="middle">${escapeXml(a.label)}</text>
+      <text x="${a.x + 70}" y="${a.y + 50}" font-family="'JetBrains Mono', monospace" font-size="10" fill="#94a3b8" text-anchor="middle">${escapeXml(a.sub)}</text>
+    `;
+    svg.appendChild(g);
+  });
+}
+
+function escapeXml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function renderProgress() {
+  const s = SCENARIOS[currentScenario];
+  const bar = document.getElementById("progressBar");
+  bar.innerHTML = s.steps.map((_, i) => {
+    let cls = "dot";
+    if (i < currentStep) cls += " done";
+    if (i === currentStep) cls += " current";
+    return `<div class="${cls}" onclick="goToStep(${i})"></div>`;
+  }).join("");
+  document.getElementById("stepLabel").textContent = `${currentStep + 1} / ${s.steps.length}`;
+}
+
+function renderState() {
+  const s = SCENARIOS[currentScenario];
+  const panel = document.getElementById("statePanel");
+  if (currentStep < 0) {
+    panel.innerHTML = '<div class="state-item"><div class="state-val" style="color:#94a3b8">Press Play or Next to begin</div></div>';
+    return;
+  }
+  const state = s.steps[currentStep].state || {};
+  panel.innerHTML = Object.entries(state).map(([k, v]) =>
+    `<div class="state-item highlight"><div class="state-key">${escapeXml(k)}</div><div class="state-val">${escapeXml(String(v))}</div></div>`
+  ).join("");
+}
+
+function renderNarration() {
+  const s = SCENARIOS[currentScenario];
+  if (currentStep < 0) {
+    document.getElementById("narTitle").textContent = `${s.label} — Press Play to begin`;
+    document.getElementById("narDetail").textContent = "";
+    return;
+  }
+  const step = s.steps[currentStep];
+  document.getElementById("narTitle").textContent = step.narration;
+  document.getElementById("narDetail").textContent = step.detail;
+}
+
+function animateStep() {
+  const s = SCENARIOS[currentScenario];
+  if (currentStep < 0 || currentStep >= s.steps.length) return;
+  const step = s.steps[currentStep];
+  const svg = document.getElementById("canvas");
+
+  // Find actor positions
+  const fromActor = s.actors.find(a => a.id === step.from);
+  const toActor = s.actors.find(a => a.id === step.to);
+  if (!fromActor || !toActor) return;
+
+  const fx = fromActor.x + 70, fy = fromActor.y + 35;
+  const tx = toActor.x + 70, ty = toActor.y + 35;
+
+  // Fade old messages
+  svg.querySelectorAll(".msg-group").forEach(g => {
+    gsap.to(g, { opacity: 0.15, duration: 0.3 });
+  });
+
+  // Create message group
+  const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  g.setAttribute("class", "msg-group");
+  g.setAttribute("opacity", "0");
+
+  // Line
+  const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  line.setAttribute("x1", fx); line.setAttribute("y1", fy);
+  line.setAttribute("x2", tx); line.setAttribute("y2", ty);
+  line.setAttribute("stroke", fromActor.color);
+  line.setAttribute("stroke-width", "1.5");
+  line.setAttribute("stroke-dasharray", "6,4");
+  line.setAttribute("marker-end", "url(#arrowhead)");
+  g.appendChild(line);
+
+  // Label
+  const mx = (fx + tx) / 2, my = (fy + ty) / 2 - 10;
+  const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  text.setAttribute("x", mx); text.setAttribute("y", my);
+  text.setAttribute("font-family", "'JetBrains Mono', monospace");
+  text.setAttribute("font-size", "10");
+  text.setAttribute("fill", "#e2e8f0");
+  text.setAttribute("text-anchor", "middle");
+  text.textContent = step.label;
+  g.appendChild(text);
+
+  svg.appendChild(g);
+
+  // Animate dot
+  const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  dot.setAttribute("cx", fx); dot.setAttribute("cy", fy);
+  dot.setAttribute("r", "6");
+  dot.setAttribute("fill", fromActor.color);
+  svg.appendChild(dot);
+
+  const dur = 0.8 / speed;
+  gsap.to(g, { opacity: 1, duration: 0.2 / speed });
+  gsap.to(dot, {
+    attr: { cx: tx, cy: ty },
+    duration: dur,
+    ease: "power2.inOut",
+    onComplete: () => dot.remove()
+  });
+
+  // Highlight destination actor
+  const destEl = document.getElementById(`actor-${step.to}`);
+  if (destEl) {
+    const rect = destEl.querySelector("rect");
+    gsap.fromTo(rect,
+      { attr: { "stroke-width": 4 } },
+      { attr: { "stroke-width": 2 }, duration: 1 / speed, delay: dur }
+    );
+  }
+}
+
+// ── Controls ────────────────────────────────────────────────────────────────
+function switchScenario(idx) {
+  stopPlay();
+  currentScenario = idx;
+  currentStep = -1;
+  renderTabs();
+  renderCanvas();
+  renderProgress();
+  renderState();
+  renderNarration();
+}
+
+function goToStep(idx) {
+  stopPlay();
+  currentStep = -1;
+  renderCanvas();
+  // Replay all steps up to idx
+  for (let i = 0; i <= idx; i++) {
+    currentStep = i;
+    animateStep();
+  }
+  renderProgress();
+  renderState();
+  renderNarration();
+}
+
+function stepForward() {
+  const s = SCENARIOS[currentScenario];
+  if (currentStep < s.steps.length - 1) {
+    currentStep++;
+    animateStep();
+    renderProgress();
+    renderState();
+    renderNarration();
+  } else {
+    stopPlay();
+  }
+}
+
+function stepBack() {
+  if (currentStep > 0) {
+    goToStep(currentStep - 1);
+  } else if (currentStep === 0) {
+    currentStep = -1;
+    renderCanvas();
+    renderProgress();
+    renderState();
+    renderNarration();
+  }
+}
+
+function togglePlay() {
+  if (isPlaying) {
+    stopPlay();
+  } else {
+    startPlay();
+  }
+}
+
+function startPlay() {
+  isPlaying = true;
+  document.getElementById("playBtn").innerHTML = "&#9724; Pause";
+  document.getElementById("playBtn").classList.add("active");
+  playNext();
+}
+
+function stopPlay() {
+  isPlaying = false;
+  clearTimeout(playTimer);
+  document.getElementById("playBtn").innerHTML = "&#9654; Play";
+  document.getElementById("playBtn").classList.remove("active");
+}
+
+function playNext() {
+  if (!isPlaying) return;
+  const s = SCENARIOS[currentScenario];
+  if (currentStep >= s.steps.length - 1) {
+    stopPlay();
+    return;
+  }
+  stepForward();
+  playTimer = setTimeout(playNext, STEP_DURATION / speed);
+}
+
+// Speed controls
+function renderSpeedControls() {
+  const speeds = [0.5, 1, 1.5, 2, 3];
+  document.getElementById("speedGroup").innerHTML = speeds.map(s =>
+    `<button class="speed-btn ${s === speed ? 'active' : ''}" onclick="setSpeed(${s})">${s}x</button>`
+  ).join("");
+}
+
+function setSpeed(s) {
+  speed = s;
+  renderSpeedControls();
+  if (isPlaying) {
+    clearTimeout(playTimer);
+    playTimer = setTimeout(playNext, STEP_DURATION / speed);
+  }
+}
+
+// ── Keyboard shortcuts ──────────────────────────────────────────────────────
+document.addEventListener("keydown", (e) => {
+  if (e.key === " ") { e.preventDefault(); togglePlay(); }
+  else if (e.key === "ArrowRight") stepForward();
+  else if (e.key === "ArrowLeft") stepBack();
+  else if (e.key >= "1" && e.key <= "9") {
+    const idx = parseInt(e.key) - 1;
+    if (idx < SCENARIOS.length) switchScenario(idx);
+  }
+});
+
+// ── Init ────────────────────────────────────────────────────────────────────
+renderTabs();
+renderCanvas();
+renderProgress();
+renderState();
+renderNarration();
+renderSpeedControls();
+</script>
+</body>
+</html>

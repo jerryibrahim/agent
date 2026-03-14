@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{PROJECT_NAME}} — Deep Dive</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0f172a; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; line-height: 1.7; }
+
+  /* Top bar */
+  .topbar { background: #0a0e1a; border-bottom: 1px solid #1e293b; padding: 16px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 10; }
+  .topbar a { color: #3b82f6; text-decoration: none; font-size: 14px; }
+  .topbar a:hover { text-decoration: underline; }
+  .topbar .sep { color: #334155; }
+  .topbar .title { color: #e2e8f0; font-weight: 600; font-size: 14px; }
+
+  /* Content */
+  .content { max-width: 860px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 32px; padding-bottom: 16px; border-bottom: 1px solid #1e293b; }
+  h2 { font-size: 22px; font-weight: 600; margin-top: 48px; margin-bottom: 20px; color: #3b82f6; }
+  h3 { font-size: 17px; font-weight: 600; margin-top: 32px; margin-bottom: 12px; color: #e2e8f0; }
+
+  p { margin-bottom: 12px; color: #cbd5e1; }
+  strong { color: #e2e8f0; }
+  code { background: #1e293b; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; color: #22d3ee; font-family: 'SF Mono', 'Fira Code', monospace; }
+
+  ul, ol { margin: 0 0 16px 24px; color: #cbd5e1; }
+  li { margin-bottom: 6px; }
+
+  hr { border: none; border-top: 1px solid #1e293b; margin: 40px 0; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 14px; }
+  th { background: #1e293b; color: #94a3b8; font-weight: 600; text-align: left; padding: 10px 12px; border: 1px solid #334155; white-space: nowrap; }
+  td { padding: 10px 12px; border: 1px solid #334155; color: #cbd5e1; vertical-align: top; }
+  tr:hover td { background: rgba(30, 41, 59, 0.5); }
+
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="../index.html">All Projects</a>
+  <span class="sep">/</span>
+  <a href="index.html">{{PROJECT_NAME}}</a>
+  <span class="sep">/</span>
+  <span class="title">Deep Dive</span>
+</div>
+
+<div class="content">
+<h1>{{PROJECT_NAME}} Deep-Dive Analysis</h1>
+
+<!-- ============================================================
+     DESIGN DECISIONS
+     For each non-obvious pattern, use this structure:
+       <h3>N. Pattern Name</h3>
+       <p><strong>What it is</strong>: ...</p>
+       <p><strong>Where it appears</strong>: ...</p>
+       <p><strong>What problem it solves</strong>: ...</p>
+       <p><strong>What would break without it</strong>: ...</p>
+       <p><strong>Alternatives</strong>: ...</p>
+     ============================================================ -->
+<h2>Design Decisions</h2>
+
+<h3>1. Placeholder Pattern</h3>
+<p><strong>What it is</strong>: Description of the pattern.</p>
+<p><strong>Where it appears</strong>: File paths and locations.</p>
+<p><strong>What problem it solves</strong>: Why this pattern exists.</p>
+<p><strong>What would break without it</strong>: Consequences of removal.</p>
+<p><strong>Alternatives</strong>: Other approaches and why they weren't chosen.</p>
+
+<hr>
+
+<!-- ============================================================
+     INVARIANTS
+     Group by category: state machines, database, authorization,
+     concurrency, idempotency.
+     ============================================================ -->
+<h2>Invariants</h2>
+
+<h3>State Machine Constraints</h3>
+<ul>
+<li><strong>Placeholder</strong>: Description of state transition rules.</li>
+</ul>
+
+<h3>Database Constraints</h3>
+<ul>
+<li><strong>Placeholder</strong>: Description of uniqueness, FK, or check constraints.</li>
+</ul>
+
+<h3>Authorization Invariants</h3>
+<ul>
+<li>Description of authorization rules that must always hold.</li>
+</ul>
+
+<h3>Concurrency &amp; Consistency</h3>
+<ul>
+<li>Description of concurrency guarantees and consistency model.</li>
+</ul>
+
+<h3>Idempotency</h3>
+<ul>
+<li>Which operations are idempotent and which are not.</li>
+</ul>
+
+<hr>
+
+<!-- ============================================================
+     FAILURE MODES
+     Use tables with columns: Step | What Can Fail | Current Handling | Correctness
+     One table per critical flow.
+     ============================================================ -->
+<h2>Failure Modes</h2>
+
+<h3>Primary Flow</h3>
+<table>
+<thead><tr>
+<th>Step</th>
+<th>What Can Fail</th>
+<th>Current Handling</th>
+<th>Correctness</th>
+</tr></thead><tbody>
+<tr>
+<td>Placeholder step</td>
+<td>Placeholder failure</td>
+<td>Placeholder handling</td>
+<td>Correct / Partial / Missing</td>
+</tr>
+</tbody></table>
+
+<h3>Cascading Failures</h3>
+<ul>
+<li><strong>If component X is down</strong>: Description of cascade effect.</li>
+</ul>
+
+<hr>
+
+<!-- ============================================================
+     ARCHITECTURE STRENGTHS & RISKS
+     ============================================================ -->
+<h2>Architecture Strengths</h2>
+<ol>
+<li><strong>Placeholder strength</strong>: Description.</li>
+</ol>
+
+<h2>Architecture Risks</h2>
+<ol>
+<li><strong>Placeholder risk</strong>: Description.</li>
+</ol>
+
+</div>
+
+</body>
+</html>
