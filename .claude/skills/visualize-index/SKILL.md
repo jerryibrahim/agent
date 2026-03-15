@@ -68,8 +68,8 @@ For each discovered folder, gather:
 ### Display Name
 
 Read the `<title>` tag from the folder's `index.html`. Strip the suffix
-" Codebase Visualization" if present. Fall back to the folder name with first
-letter capitalized.
+" - Codebase Visualization" or " Codebase Visualization" if present. Fall back
+to the folder name as-is.
 
 ### Description
 
