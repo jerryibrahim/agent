@@ -24,6 +24,13 @@ string construction, and the interactive walkthrough uses GSAP from CDN.
 
 If no arguments are provided, run all phases.
 
+### `{{PROJECT_NAME}}` convention
+
+`{{PROJECT_NAME}}` is derived from the **root folder name of the repository** (i.e., the
+basename of the current working directory). Use this value consistently when replacing
+`{{PROJECT_NAME}}` in all templates (index.html, interactive.html, deep-dive.html, and
+the Python generator).
+
 ---
 
 ## Phase 0: Explore the Codebase

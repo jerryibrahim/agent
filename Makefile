@@ -19,7 +19,7 @@ copy-claude-settings:
 ## Copy a specific skill: make copy-claude-skill SKILL=commit
 copy-claude-skill:
 ifndef SKILL
-	$(error Usage: make copy-skill SKILL=<skill-name>)
+	$(error Usage: make copy-claude-skill SKILL=<skill-name>)
 endif
 	@mkdir -p $(DEST)/skills
 	cp -r $(SRC)/skills/$(SKILL) $(DEST)/skills/$(SKILL)
