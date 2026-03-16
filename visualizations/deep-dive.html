@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent — Deep Dive</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0f172a; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; line-height: 1.7; }
+
+  /* Content */
+  .content { max-width: 860px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 32px; padding-bottom: 16px; border-bottom: 1px solid #1e293b; }
+  h2 { font-size: 22px; font-weight: 600; margin-top: 48px; margin-bottom: 20px; color: #3b82f6; }
+  h3 { font-size: 17px; font-weight: 600; margin-top: 32px; margin-bottom: 12px; color: #e2e8f0; }
+
+  p { margin-bottom: 12px; color: #cbd5e1; }
+  strong { color: #e2e8f0; }
+  code { background: #1e293b; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; color: #22d3ee; font-family: 'SF Mono', 'Fira Code', monospace; }
+
+  ul, ol { margin: 0 0 16px 24px; color: #cbd5e1; }
+  li { margin-bottom: 6px; }
+
+  hr { border: none; border-top: 1px solid #1e293b; margin: 40px 0; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 14px; }
+  th { background: #1e293b; color: #94a3b8; font-weight: 600; text-align: left; padding: 10px 12px; border: 1px solid #334155; white-space: nowrap; }
+  td { padding: 10px 12px; border: 1px solid #334155; color: #cbd5e1; vertical-align: top; }
+  tr:hover td { background: rgba(30, 41, 59, 0.5); }
+
+</style>
+</head>
+<body>
+<!-- nav:inject -->
+
+<div class="content">
+<h1>Agent Deep-Dive Analysis</h1>
+
+<h2>Design Decisions</h2>
+
+<h3>1. Skill-Per-Directory Architecture</h3>
+<p><strong>What it is</strong>: Each skill is a self-contained directory with a <code>SKILL.md</code> frontmatter file, optional <code>references/</code> subdirectory for methodology docs, and optional <code>templates/</code> for output generation.</p>
+<p><strong>Where it appears</strong>: <code>.claude/skills/debate/</code>, <code>.claude/skills/jit-learning/</code>, <code>.claude/skills/visualize-codebase/</code>, etc.</p>
+<p><strong>What problem it solves</strong>: Skills can be installed, updated, or removed independently. A user can copy just <code>debate/</code> without pulling in visualization templates. Claude Code auto-discovers skills from the directory structure.</p>
+<p><strong>What would break without it</strong>: All skill logic would live in a single monolithic instruction file. Updates to one skill would risk regressions in others. Users couldn't selectively install skills.</p>
+<p><strong>Alternatives</strong>: A single <code>SKILLS.md</code> file with all skills concatenated was the original approach. It was abandoned because (a) context window bloat on every invocation and (b) no way to selectively distribute individual skills via <code>make copy-claude-skill SKILL=X</code>.</p>
+
+<h3>2. Template-Driven Generation with Structural Fidelity</h3>
+<p><strong>What it is</strong>: All generated HTML files must match a canonical template skeleton exactly. Only project-specific content (data arrays, text) may differ. CSS, DOM structure, class names, and navigation placeholders must be verbatim copies.</p>
+<p><strong>Where it appears</strong>: <code>visualize-codebase/templates/index.html</code>, <code>interactive.html</code>, <code>deep-dive.html</code>. Phase 4 validation explicitly diffs structural skeletons.</p>
+<p><strong>What problem it solves</strong>: Prevents CSS/DOM drift across regenerations. When the <code>visualize-index</code> skill injects shared navigation via <code>&lt;!-- nav:inject --&gt;</code>, it can rely on the placeholder being in the exact right position. Ensures visual consistency across all projects in a gallery.</p>
+<p><strong>What would break without it</strong>: Each regeneration could introduce subtle layout differences. The gallery navigation injection would fail if the comment placeholder was missing or moved. Cross-project styling would diverge.</p>
+<p><strong>Alternatives</strong>: Using a templating engine (Jinja2, Handlebars) was considered but rejected because it would add a dependency. The current approach keeps templates as plain HTML files that Claude copies and fills in.</p>
+
+<h3>3. Data-Driven Python SVG Generator</h3>
+<p><strong>What it is</strong>: A single Python script (<code>generate_visuals.py</code>, ~800 lines) with two sections: (1) shared helper functions and renderers that never change, and (2) a <code>DATA</code> dict that gets replaced with project-specific content.</p>
+<p><strong>Where it appears</strong>: <code>visualize-codebase/templates/generate_visuals.py</code></p>
+<p><strong>What problem it solves</strong>: Zero pip dependencies. Deterministic SVG output. The LLM only needs to fill in a data structure, not write rendering code. All XML escaping is handled by the shared helpers.</p>
+<p><strong>What would break without it</strong>: Each visualization would require hand-crafted SVG strings with ad-hoc escaping, leading to XML parsing failures from unescaped <code>&amp;</code> characters. Output would be inconsistent across projects.</p>
+<p><strong>Alternatives</strong>: SVG libraries (svgwrite, drawSvg) add pip dependencies. D3.js-based generation requires Node.js. Browser-rendered SVG (via headless Chrome) adds infrastructure complexity. The stdlib-only approach is the simplest that works.</p>
+
+<h3>4. Three-Pass Adversarial Review (Advocate/Critic/Judge)</h3>
+<p><strong>What it is</strong>: The debate review skill enforces three distinct analytical passes with different objectives. The Advocate steelmans first (Rapoport Rules), the Critic challenges assumptions (ACH methodology), and the Judge synthesizes a verdict.</p>
+<p><strong>Where it appears</strong>: <code>.claude/skills/debate/SKILL.md</code> and <code>references/review.md</code></p>
+<p><strong>What problem it solves</strong>: Prevents the common failure mode of jumping straight to criticism without understanding. Forces the reviewer to demonstrate comprehension before challenging. The Judge pass prevents both false positives (Critic overreach) and false negatives (Advocate bias).</p>
+<p><strong>What would break without it</strong>: Single-pass reviews tend to be either too generous (missing real issues) or too harsh (nitpicking without context). The three-pass structure produces balanced, actionable findings.</p>
+<p><strong>Alternatives</strong>: Single-pass review (standard code review), two-pass (pro/con only), or unstructured adversarial analysis. The three-pass approach was chosen because it maps to established intelligence analysis tradecraft (ACH) and philosophical methodology (Hegelian dialectic).</p>
+
+<h3>5. Permission Model: Deny-by-Default with Explicit Allow List</h3>
+<p><strong>What it is</strong>: <code>settings.json</code> explicitly lists every Bash command pattern that Claude is allowed to run, plus a deny list for destructive operations.</p>
+<p><strong>Where it appears</strong>: <code>.claude/settings.json</code></p>
+<p><strong>What problem it solves</strong>: Prevents accidental destructive operations like <code>rm -rf</code>, <code>git push</code>, or <code>helm install</code>. The allow list ensures only read-only and generation commands run without user confirmation.</p>
+<p><strong>What would break without it</strong>: Claude could accidentally push code, delete files, or modify cluster state. The deny list for <code>git push</code> is especially important because skills like <code>/commit</code> stage and commit but should never push without explicit user approval.</p>
+<p><strong>Alternatives</strong>: Relying on Claude's built-in safety checks alone, or using a broader allow list. The explicit approach was chosen because the cost of a false positive (blocking a safe command) is low, while the cost of a false negative (running a destructive command) is high.</p>
+
+<hr>
+
+<h2>Invariants</h2>
+
+<h3>Skill Structure Constraints</h3>
+<ul>
+<li><strong>Every skill must have a SKILL.md</strong>: Claude Code discovers skills by the presence of this file. Without it, the skill directory is invisible.</li>
+<li><strong>SKILL.md frontmatter must include <code>name</code> and <code>description</code></strong>: The description field contains trigger patterns that Claude Code uses for intent matching.</li>
+<li><strong>Allowed tools must be explicitly listed</strong>: If a skill needs Bash access, the SKILL.md must declare it. This prevents skills from silently escalating their tool usage.</li>
+</ul>
+
+<h3>Template Fidelity Constraints</h3>
+<ul>
+<li><strong><code>&lt;!-- nav:inject --&gt;</code> must appear immediately after <code>&lt;body&gt;</code></strong>: The <code>visualize-index</code> skill replaces this comment with a <code>&lt;script&gt;</code> tag. If it's missing or moved, navigation injection fails silently.</li>
+<li><strong>CSS must be single-line compact format</strong>: The template validation in Phase 4 compares CSS blocks. Multi-line or reformatted CSS would fail structural conformance checks.</li>
+<li><strong>Generated HTML must be standalone</strong>: No build step, no npm install, no server. Open the file in a browser and it works.</li>
+</ul>
+
+<h3>SVG Generation Constraints</h3>
+<ul>
+<li><strong>All text must be XML-escaped</strong>: Every string passed to SVG renderers goes through <code>xml.sax.saxutils.escape()</code>. Unescaped <code>&amp;</code>, <code>&lt;</code>, or <code>&gt;</code> characters produce invalid XML that xmllint rejects.</li>
+<li><strong>Output files must validate with xmllint</strong>: Phase 4 runs <code>xmllint --noout</code> on every generated SVG. A broken SVG is a bug, not a warning.</li>
+<li><strong>Dark theme colors are fixed</strong>: Background <code>#0f172a</code>, primary text <code>#e2e8f0</code>, muted text <code>#94a3b8</code>. Changing these would break visual consistency across the gallery.</li>
+</ul>
+
+<h3>Methodology Constraints</h3>
+<ul>
+<li><strong>Debate review must complete all three passes</strong>: Skipping the Advocate pass means the Critic lacks context. Skipping the Judge pass means no verdict synthesis.</li>
+<li><strong>Red team must apply the 10th Man Rule</strong>: Even if all 5 attack vectors find no issues, the methodology requires constructing at least one plausible failure scenario.</li>
+<li><strong>JIT Learning must produce exactly 5 pages</strong>: One page per Bloom's Taxonomy step. This constraint ensures comprehensive coverage and prevents shallow analysis.</li>
+</ul>
+
+<h3>Idempotency</h3>
+<ul>
+<li><strong>SVG generation is idempotent</strong>: Running the Python script twice with the same DATA dict produces identical output.</li>
+<li><strong>Gallery index rebuild is idempotent</strong>: Running <code>/visualize-index</code> twice produces the same gallery (assuming no new projects were added).</li>
+<li><strong>Navigation injection is idempotent</strong>: Replacing <code>&lt;!-- nav:inject --&gt;</code> with a script tag, then running again, does not duplicate the script tag (the comment is consumed).</li>
+</ul>
+
+<hr>
+
+<h2>Failure Modes</h2>
+
+<h3>Codebase Visualization Flow</h3>
+<table>
+<thead><tr>
+<th>Step</th>
+<th>What Can Fail</th>
+<th>Current Handling</th>
+<th>Correctness</th>
+</tr></thead><tbody>
+<tr>
+<td>Phase 0: Explore</td>
+<td>Subagents return incomplete findings (miss routes, types, etc.)</td>
+<td>Multiple subagents with overlapping scope; manual review of findings before generation</td>
+<td>Partial — depends on subagent thoroughness; no automated completeness check</td>
+</tr>
+<tr>
+<td>Phase 1: SVG generation</td>
+<td>Unescaped XML characters in DATA dict strings</td>
+<td><code>xml.sax.saxutils.escape()</code> applied to all text; xmllint validation catches survivors</td>
+<td>Correct — two layers of defense</td>
+</tr>
+<tr>
+<td>Phase 1: SVG generation</td>
+<td>Python script crashes due to missing DATA keys</td>
+<td>KeyError traceback; slide not generated</td>
+<td>Partial — fails loud but no graceful degradation</td>
+</tr>
+<tr>
+<td>Phase 2: Interactive HTML</td>
+<td>GSAP CDN unavailable (network down, CDN outage)</td>
+<td>No fallback; animations silently fail; static layout still renders</td>
+<td>Partial — page is usable but animations don't work</td>
+</tr>
+<tr>
+<td>Phase 4: Validation</td>
+<td>xmllint not installed on system</td>
+<td>Command fails; user sees error</td>
+<td>Correct — validation is explicit, not silent</td>
+</tr>
+<tr>
+<td>Gallery index build</td>
+<td>Project folder missing slide_01_eli5.svg</td>
+<td>Folder is excluded from discovery (requires both slide_01 and index.html)</td>
+<td>Correct — explicit inclusion criteria</td>
+</tr>
+</tbody></table>
+
+<h3>Debate Review Flow</h3>
+<table>
+<thead><tr>
+<th>Step</th>
+<th>What Can Fail</th>
+<th>Current Handling</th>
+<th>Correctness</th>
+</tr></thead><tbody>
+<tr>
+<td>Mode parsing</td>
+<td>Unrecognized mode (not review/red-team/steelman)</td>
+<td>SKILL.md defaults to review mode</td>
+<td>Correct — safe default</td>
+</tr>
+<tr>
+<td>Pass 1: Advocate</td>
+<td>LLM doesn't steelman effectively (confirms bias instead)</td>
+<td>Rapoport Rules enforce structure: restate, agree, learn, then critique</td>
+<td>Partial — methodology helps but can't guarantee LLM follows it perfectly</td>
+</tr>
+<tr>
+<td>Pass 2: Critic</td>
+<td>False positive findings (Critic finds issues that don't exist)</td>
+<td>Pass 3 Judge rejects Critic overreach as a dedicated category</td>
+<td>Correct — built-in correction mechanism</td>
+</tr>
+<tr>
+<td>Evidence matrix</td>
+<td>Evidence supports both sides equally (non-diagnostic)</td>
+<td>ACH methodology rates diagnostic value; low-diagnostic evidence is flagged</td>
+<td>Correct — methodology handles this case explicitly</td>
+</tr>
+</tbody></table>
+
+<h3>Cascading Failures</h3>
+<ul>
+<li><strong>If settings.json is corrupted</strong>: Claude Code falls back to default permissions. All Bash commands require manual approval. Skills still work but every command prompts.</li>
+<li><strong>If a template file is deleted</strong>: The corresponding skill fails at generation time. Other skills are unaffected (skill isolation). The error is visible in Claude's output.</li>
+<li><strong>If CLAUDE.md is removed</strong>: Claude Code loses operational guidelines but skills still function. Commit format, task management, and verification practices degrade to defaults.</li>
+</ul>
+
+<hr>
+
+<h2>Architecture Strengths</h2>
+<ol>
+<li><strong>Zero external dependencies</strong>: No pip install, no npm install, no Docker required. Python uses only stdlib. HTML uses a single CDN script (GSAP). This eliminates version conflicts, supply chain risks, and installation friction.</li>
+<li><strong>Skill isolation</strong>: Each skill is a self-contained directory. Adding, removing, or updating one skill cannot break another. This enables selective distribution via <code>make copy-claude-skill SKILL=X</code>.</li>
+<li><strong>Template-driven idempotent generation</strong>: Output is deterministic given the same input data. Templates enforce visual consistency. Structural validation catches drift.</li>
+<li><strong>Methodology grounding</strong>: Skills aren't ad-hoc prompts. They're grounded in established frameworks: ACH (intelligence analysis), Rapoport Rules (philosophy of argument), Bloom's Taxonomy (cognitive science), Hegelian dialectic (synthesis).</li>
+<li><strong>Progressive disclosure</strong>: The 11-slide altitude descent (50,000 ft to ground) means any audience can engage at their level. Executives see slide 1-3; engineers dive to slide 8-11.</li>
+</ol>
+
+<h2>Architecture Risks</h2>
+<ol>
+<li><strong>LLM fidelity to methodology</strong>: Skills describe detailed methodologies, but the LLM may not follow them precisely on every invocation. There's no runtime enforcement — only the quality of the prompt matters.</li>
+<li><strong>Template rigidity vs. customization</strong>: The strict template conformance rule means any visual customization requires modifying the canonical template, which affects all future projects. There's no per-project override mechanism.</li>
+<li><strong>Single-CDN dependency for interactivity</strong>: If the GSAP CDN is unavailable, interactive walkthroughs lose all animation. A local fallback copy would eliminate this risk but adds a file to maintain.</li>
+<li><strong>No automated testing</strong>: The project has no test suite. Validation relies on xmllint for SVGs and manual template conformance checks. A regression in the Python generator or HTML templates would only be caught at generation time.</li>
+</ol>
+
+</div>
+
+</body>
+</html>

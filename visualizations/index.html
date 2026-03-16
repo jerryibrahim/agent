@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent - Codebase Visualization</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0f172a; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar { width: 220px; background: #0a0e1a; border-right: 1px solid #1e293b; display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-title { padding: 16px; font-size: 14px; font-weight: 700; color: #3b82f6; border-bottom: 1px solid #1e293b; }
+  .thumb-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .thumb-list::-webkit-scrollbar { width: 4px; }
+  .thumb-list::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+  .thumb { padding: 8px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; font-size: 11px; color: #94a3b8; transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
+  .thumb:hover { background: #1e293b; color: #e2e8f0; }
+  .thumb.active { background: #1e3a5f; color: #3b82f6; }
+  .thumb-num { width: 22px; height: 22px; border-radius: 50%; background: #1e293b; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+  .thumb.active .thumb-num { background: #3b82f6; color: #0f172a; }
+
+  /* Main area */
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .toolbar { height: 48px; background: #0a0e1a; border-bottom: 1px solid #1e293b; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; flex-shrink: 0; }
+  .toolbar-left { display: flex; align-items: center; gap: 12px; }
+  .nav-btn { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.15s; }
+  .nav-btn:hover { background: #334155; }
+  .nav-btn:disabled { opacity: 0.3; cursor: default; }
+  .counter { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 13px; color: #94a3b8; }
+
+  /* Slide viewport */
+  .viewport { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; overflow: hidden; }
+  .viewport img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; transition: opacity 0.25s; }
+
+  /* Help hint */
+  .hint { font-size: 11px; color: #475569; }
+  kbd { background: #1e293b; padding: 2px 6px; border-radius: 3px; font-size: 10px; border: 1px solid #334155; }
+</style>
+</head>
+<body>
+<!-- nav:inject -->
+<div class="sidebar">
+  <div class="sidebar-title">Agent</div>
+  <div class="thumb-list" id="thumbList"></div>
+</div>
+<div class="main">
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <button class="nav-btn" id="prevBtn" onclick="nav(-1)">&larr; Prev</button>
+      <button class="nav-btn" id="nextBtn" onclick="nav(1)">Next &rarr;</button>
+      <span class="counter" id="counter"></span>
+    </div>
+    <span class="hint"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> to navigate</span>
+  </div>
+  <div class="viewport">
+    <img id="slideImg" src="" alt="Slide">
+  </div>
+</div>
+<script>
+const SLIDES = [
+  { file: "slide_01_eli5.svg", label: "ELI5 — What is Agent?" },
+  { file: "slide_02_system_context.svg", label: "System Context" },
+  { file: "slide_03_architecture_layers.svg", label: "Architecture Layers" },
+  { file: "slide_04_domain_model.svg", label: "Domain Model" },
+  { file: "slide_05_request_lifecycle.svg", label: "Request Lifecycle" },
+  { file: "slide_06_routing.svg", label: "Skill Dispatch" },
+  { file: "slide_07_state_machines.svg", label: "State Machines" },
+  { file: "slide_08_database_schema.svg", label: "Persistence Schema" },
+  { file: "slide_09_api_routes.svg", label: "Skill Command Map" },
+  { file: "slide_10_code_structure.svg", label: "Code Structure" },
+  { file: "slide_11_config.svg", label: "Config & Environment" },
+];
+
+let current = 0;
+
+function render() {
+  document.getElementById("slideImg").src = SLIDES[current].file;
+  document.getElementById("counter").textContent = `${current + 1} / ${SLIDES.length}`;
+  document.getElementById("prevBtn").disabled = current === 0;
+  document.getElementById("nextBtn").disabled = current === SLIDES.length - 1;
+  document.querySelectorAll(".thumb").forEach((el, i) => el.classList.toggle("active", i === current));
+}
+
+function nav(dir) {
+  const next = current + dir;
+  if (next >= 0 && next < SLIDES.length) { current = next; render(); }
+}
+
+function goTo(i) { current = i; render(); }
+
+// Build thumbnail list
+const list = document.getElementById("thumbList");
+SLIDES.forEach((s, i) => {
+  const el = document.createElement("div");
+  el.className = "thumb";
+  el.innerHTML = `<span class="thumb-num">${i + 1}</span><span>${s.label}</span>`;
+  el.onclick = () => goTo(i);
+  list.appendChild(el);
+});
+
+// Keyboard nav
+document.addEventListener("keydown", e => {
+  if (e.key === "ArrowLeft") nav(-1);
+  else if (e.key === "ArrowRight") nav(1);
+});
+
+render();
+</script>
+</body>
+</html>

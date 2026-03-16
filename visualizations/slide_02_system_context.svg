@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900">
+<defs>
+  <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#0f172a"/>
+    <stop offset="100%" stop-color="#0a0e1a"/>
+  </linearGradient>
+</defs>
+<rect width="1200" height="900" fill="url(#bgGrad)"/>
+<rect x="0" y="0" width="1200" height="80" fill="#0a0e1a" opacity="0.7"/>
+<text x="40" y="38" font-family="system-ui, sans-serif" font-size="24" font-weight="700" fill="#10b981">System Context</text>
+<text x="40" y="62" font-family="system-ui, sans-serif" font-size="14" fill="#94a3b8">30,000 ft -- Actors and Interactions</text>
+<line x1="40" y1="76" x2="1160" y2="76" stroke="#1e293b" stroke-width="1"/><rect x="80" y="250" width="160" height="80" rx="10" fill="#111827" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="160.0" y="284.0" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#3b82f6" text-anchor="middle">Developer</text>
+<text x="160.0" y="304.0" font-family="'JetBrains Mono', monospace" font-size="10" fill="#94a3b8" text-anchor="middle">Human user</text><rect x="350" y="250" width="200" height="80" rx="10" fill="#111827" stroke="#10b981" stroke-width="1.5"/>
+<text x="450.0" y="284.0" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#10b981" text-anchor="middle">Claude Code</text>
+<text x="450.0" y="304.0" font-family="'JetBrains Mono', monospace" font-size="10" fill="#94a3b8" text-anchor="middle">IDE / CLI agent</text><rect x="350" y="450" width="200" height="80" rx="10" fill="#111827" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="450.0" y="484.0" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#8b5cf6" text-anchor="middle">Agent Skills</text>
+<text x="450.0" y="504.0" font-family="'JetBrains Mono', monospace" font-size="10" fill="#94a3b8" text-anchor="middle">.claude/skills/</text><rect x="700" y="250" width="200" height="80" rx="10" fill="#111827" stroke="#eab308" stroke-width="1.5"/>
+<text x="800.0" y="284.0" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#eab308" text-anchor="middle">Target Codebase</text>
+<text x="800.0" y="304.0" font-family="'JetBrains Mono', monospace" font-size="10" fill="#94a3b8" text-anchor="middle">Any project</text><rect x="700" y="450" width="200" height="80" rx="10" fill="#111827" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="800.0" y="484.0" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#94a3b8" text-anchor="middle">Filesystem</text>
+<text x="800.0" y="504.0" font-family="'JetBrains Mono', monospace" font-size="10" fill="#94a3b8" text-anchor="middle">SVG, HTML, MD output</text><rect x="950" y="350" width="160" height="70" rx="10" fill="#111827" stroke="#06b6d4" stroke-width="1.5"/>
+<text x="1030.0" y="379.0" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#06b6d4" text-anchor="middle">GSAP CDN</text>
+<text x="1030.0" y="399.0" font-family="'JetBrains Mono', monospace" font-size="10" fill="#94a3b8" text-anchor="middle">Animation library</text><line x1="240" y1="290" x2="350" y2="290" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="6,4"/>
+<circle cx="350" cy="290" r="3" fill="#3b82f6"/>
+<text x="295.0" y="282.0" font-family="'JetBrains Mono', monospace" font-size="10" fill="#94a3b8" text-anchor="middle">natural language</text><line x1="450" y1="330" x2="450" y2="450" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="6,4"/>
+<circle cx="450" cy="450" r="3" fill="#8b5cf6"/>
+<text x="450.0" y="382.0" font-family="'JetBrains Mono', monospace" font-size="10" fill="#94a3b8" text-anchor="middle">loads SKILL.md</text><line x1="550" y1="290" x2="700" y2="290" stroke="#eab308" stroke-width="1.5" stroke-dasharray="6,4"/>
+<circle cx="700" cy="290" r="3" fill="#eab308"/>
+<text x="625.0" y="282.0" font-family="'JetBrains Mono', monospace" font-size="10" fill="#94a3b8" text-anchor="middle">reads source</text><line x1="550" y1="490" x2="700" y2="490" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6,4"/>
+<circle cx="700" cy="490" r="3" fill="#94a3b8"/>
+<text x="625.0" y="482.0" font-family="'JetBrains Mono', monospace" font-size="10" fill="#94a3b8" text-anchor="middle">writes artifacts</text><line x1="900" y1="490" x2="950" y2="385" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="6,4"/>
+<circle cx="950" cy="385" r="3" fill="#06b6d4"/>
+<text x="925.0" y="429.5" font-family="'JetBrains Mono', monospace" font-size="10" fill="#94a3b8" text-anchor="middle">CDN script</text><text x="600" y="830" font-family="system-ui, sans-serif" font-size="13" fill="#475569" text-anchor="middle">Zero external dependencies except GSAP from CDN for interactive HTML animations.</text>
+</svg>

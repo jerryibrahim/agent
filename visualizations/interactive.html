@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent — Interactive Walkthrough</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --border: #1e293b;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --blue: #3b82f6;
+    --green: #10b981;
+    --purple: #8b5cf6;
+    --orange: #f97316;
+    --pink: #ec4899;
+    --cyan: #06b6d4;
+    --red: #ef4444;
+    --yellow: #eab308;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* Top bar */
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .topbar h1 { font-size: 16px; font-weight: 600; white-space: nowrap; }
+  .tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    flex: 1;
+    padding: 2px 0;
+  }
+  .tab {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    transition: all 0.2s;
+  }
+  .tab:hover { border-color: var(--muted); color: var(--text); }
+  .tab.active { border-color: var(--blue); color: var(--blue); background: rgba(59,130,246,0.1); }
+
+  /* Main layout */
+  .content {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* SVG canvas */
+  .canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+  .canvas-wrap svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Actor boxes */
+  .actor {
+    cursor: default;
+  }
+  .actor rect {
+    transition: filter 0.3s;
+  }
+  .actor:hover rect {
+    filter: brightness(1.2);
+  }
+
+  /* State inspector */
+  .inspector {
+    width: 280px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    padding: 16px;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .inspector h3 {
+    font-size: 13px;
+    text-transform: uppercase;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    margin-bottom: 12px;
+  }
+  .state-item {
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    background: var(--bg);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 12px;
+    transition: border-color 0.3s;
+  }
+  .state-item.highlight { border-color: var(--blue); }
+  .state-key {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+  .state-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+    word-break: break-all;
+  }
+
+  /* Bottom bar */
+  .bottom {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 16px 20px;
+    flex-shrink: 0;
+  }
+  .narration {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+  .narration-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 0;
+  }
+  .narration-detail {
+    font-size: 13px;
+    color: var(--muted);
+    flex: 1;
+    min-width: 0;
+  }
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .ctrl-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+  .ctrl-btn:hover { border-color: var(--blue); color: var(--blue); }
+  .ctrl-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .ctrl-btn.active:hover { background: var(--blue); border-color: #93c5fd; color: #000; }
+  #playBtn { width: 120px; text-align: center; }
+  .progress {
+    display: flex;
+    gap: 6px;
+    flex: 1;
+    align-items: center;
+    overflow-x: auto;
+    padding: 2px 0;
+  }
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--border);
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .dot.done { background: var(--blue); opacity: 0.6; }
+  .dot.current { background: var(--blue); transform: scale(1.3); }
+  .dot:hover { transform: scale(1.4); }
+  .controls-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .speed-group {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .speed-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    transition: all 0.15s;
+  }
+  .speed-btn:first-child { border-radius: 4px 0 0 4px; }
+  .speed-btn:last-child { border-radius: 0 4px 4px 0; }
+  .speed-btn.active { background: var(--blue); border-color: var(--blue); color: white; }
+  .speed-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .kbd-hints {
+    font-size: 13px;
+    color: #64748b;
+    white-space: nowrap;
+  }
+  .kbd-hints kbd {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #64748b;
+  }
+  .step-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+<!-- nav:inject -->
+
+<div class="topbar">
+  <h1>Agent Walkthrough</h1>
+  <div class="tabs" id="scenarioTabs"></div>
+</div>
+
+<div class="content">
+  <div class="canvas-wrap">
+    <svg id="canvas" viewBox="0 0 900 600" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8"/>
+        </marker>
+      </defs>
+    </svg>
+  </div>
+  <div class="inspector">
+    <h3>State Inspector</h3>
+    <div id="statePanel"></div>
+  </div>
+</div>
+
+<div class="bottom">
+  <div class="narration">
+    <div class="narration-title" id="narTitle">Select a scenario to begin</div>
+    <div class="narration-detail" id="narDetail"></div>
+  </div>
+  <div class="controls-wrap">
+    <div class="controls">
+      <button class="ctrl-btn" id="playBtn" onclick="togglePlay()">&#9654; Play</button>
+      <button class="ctrl-btn" onclick="stepBack()">&#9664; Prev</button>
+      <button class="ctrl-btn" onclick="stepForward()">Next &#9654;</button>
+      <span class="step-label" id="stepLabel">0 / 0</span>
+      <div class="progress" id="progressBar"></div>
+    </div>
+    <div class="speed-row">
+      <div class="speed-group" id="speedGroup"></div>
+      <span class="kbd-hints"><kbd>Space</kbd> play/pause &nbsp; <kbd>&larr;</kbd> prev &nbsp; <kbd>&rarr;</kbd> next</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Scenario data ───────────────────────────────────────────────────────────
+const SCENARIOS = [
+  {
+    id: "visualize-codebase",
+    label: "Visualize Codebase",
+    color: "#8b5cf6",
+    actors: [
+      { id: "developer", label: "Developer", sub: "Human user", x: 30, y: 50, color: "#3b82f6" },
+      { id: "claude", label: "Claude Code", sub: "IDE agent", x: 30, y: 250, color: "#10b981" },
+      { id: "skill", label: "SKILL.md", sub: "visualize-codebase", x: 300, y: 50, color: "#8b5cf6" },
+      { id: "subagent", label: "Subagents", sub: "Parallel explorers", x: 300, y: 250, color: "#eab308" },
+      { id: "codebase", label: "Target Codebase", sub: "Source files", x: 570, y: 50, color: "#06b6d4" },
+      { id: "python", label: "Python Script", sub: "generate_visuals.py", x: 570, y: 250, color: "#ec4899" },
+      { id: "output", label: "Output Files", sub: "visualizations/", x: 570, y: 450, color: "#94a3b8" },
+      { id: "browser", label: "Browser", sub: "Renders HTML", x: 300, y: 450, color: "#f97316" }
+    ],
+    steps: [
+      {
+        from: "developer", to: "claude",
+        label: "/visualize-codebase",
+        narration: "Developer invokes the skill",
+        detail: "The developer says 'visualize this codebase' or runs /visualize-codebase. Claude Code receives the intent.",
+        state: { phase: "dispatch", skill: "visualize-codebase", args: "all" }
+      },
+      {
+        from: "claude", to: "skill",
+        label: "Load SKILL.md",
+        narration: "Skill definition loaded",
+        detail: "Claude reads .claude/skills/visualize-codebase/SKILL.md to get the 4-phase methodology, allowed tools, and template paths.",
+        state: { phase: "init", loaded: "SKILL.md", phases: "explore, static, interactive, deep-dive" }
+      },
+      {
+        from: "claude", to: "subagent",
+        label: "Spawn explorers",
+        narration: "Phase 0: Parallel exploration begins",
+        detail: "Multiple subagents launch in parallel, each with one objective: find structure, entry points, types, routes, state machines, schema.",
+        state: { phase: "explore", agents: "3 parallel", targets: "structure, types, routes" }
+      },
+      {
+        from: "subagent", to: "codebase",
+        label: "Read source files",
+        narration: "Subagents scan the codebase",
+        detail: "Agents use Glob, Grep, and Read tools to map directories, find struct definitions, trace route registrations, and identify state enums.",
+        state: { phase: "explore", files_read: "~30", patterns: "structs, routes, enums" }
+      },
+      {
+        from: "subagent", to: "claude",
+        label: "Return findings",
+        narration: "Exploration results synthesized",
+        detail: "Each subagent returns structured findings. Claude merges them into a complete mental model: architecture layers, domain entities, API surface.",
+        state: { phase: "explore-complete", entities: "5", routes: "12", state_machines: "2" }
+      },
+      {
+        from: "claude", to: "python",
+        label: "Write DATA dict",
+        narration: "Phase 1: Generate SVG infographics",
+        detail: "Claude copies the template generate_visuals.py and replaces the DATA dict with project-specific content from the exploration phase.",
+        state: { phase: "static", template: "generate_visuals.py", slides: "11 planned" }
+      },
+      {
+        from: "python", to: "output",
+        label: "Generate 11 SVGs",
+        narration: "Python script produces slides",
+        detail: "Running python3 generate_visuals.py creates slide_01_eli5.svg through slide_11_config.svg. Each slide descends from 50,000 ft to ground level.",
+        state: { phase: "static", generated: "11 SVGs", altitude: "50k ft -> ground" }
+      },
+      {
+        from: "claude", to: "output",
+        label: "Write interactive.html",
+        narration: "Phase 2: GSAP animated walkthrough",
+        detail: "Claude reads the interactive.html template, replaces {{PROJECT_NAME}} and the SCENARIOS array with real data, writes the file.",
+        state: { phase: "interactive", scenarios: "3-5", animation: "GSAP from CDN" }
+      },
+      {
+        from: "claude", to: "output",
+        label: "Write deep-dive.html",
+        narration: "Phase 3: Deep-dive analysis",
+        detail: "Claude generates design decisions, invariants, and failure modes as both deep-dive.md and deep-dive.html using the template.",
+        state: { phase: "deep-dive", sections: "decisions, invariants, failures" }
+      },
+      {
+        from: "claude", to: "output",
+        label: "xmllint + validate",
+        narration: "Phase 4: Validation",
+        detail: "All SVGs are validated with xmllint --noout. HTML files are checked against canonical templates for structural conformance.",
+        state: { phase: "validate", svgs: "11/11 valid", html: "3 conformant" }
+      },
+      {
+        from: "output", to: "browser",
+        label: "open index.html",
+        narration: "Artifacts delivered to browser",
+        detail: "The slideshow viewer, interactive walkthrough, and deep-dive analysis open in the browser for the developer to review.",
+        state: { phase: "complete", files: "14 total", location: "visualizations/agent/" }
+      },
+      {
+        from: "browser", to: "developer",
+        label: "Visual documentation",
+        narration: "Developer reviews the visualization",
+        detail: "The developer navigates through 11 SVG slides with keyboard shortcuts, plays animated scenarios, and reads the deep-dive analysis.",
+        state: { phase: "delivered", slides: "11", interactive: "yes", deep_dive: "yes" }
+      }
+    ]
+  },
+  {
+    id: "debate-review",
+    label: "Debate Review",
+    color: "#ef4444",
+    actors: [
+      { id: "developer", label: "Developer", sub: "Human user", x: 30, y: 250, color: "#3b82f6" },
+      { id: "claude", label: "Claude Code", sub: "IDE agent", x: 250, y: 50, color: "#10b981" },
+      { id: "skill", label: "SKILL.md", sub: "debate", x: 500, y: 50, color: "#ef4444" },
+      { id: "reference", label: "review.md", sub: "Methodology", x: 750, y: 50, color: "#eab308" },
+      { id: "codebase", label: "Target Code", sub: "Under review", x: 500, y: 250, color: "#06b6d4" },
+      { id: "advocate", label: "Pass 1", sub: "Advocate", x: 250, y: 450, color: "#10b981" },
+      { id: "critic", label: "Pass 2", sub: "Critic", x: 500, y: 450, color: "#eab308" },
+      { id: "judge", label: "Pass 3", sub: "Judge", x: 750, y: 450, color: "#ef4444" }
+    ],
+    steps: [
+      {
+        from: "developer", to: "claude",
+        label: "/debate review",
+        narration: "Developer requests adversarial review",
+        detail: "The developer says 'review this code' or runs /debate review. Claude Code dispatches to the debate skill.",
+        state: { mode: "review", target: "specified code" }
+      },
+      {
+        from: "claude", to: "skill",
+        label: "Load debate/SKILL.md",
+        narration: "Skill definition loaded",
+        detail: "Claude reads the debate skill definition, identifies 'review' as the mode from the first argument word.",
+        state: { skill: "debate", mode: "review", pass: "loading" }
+      },
+      {
+        from: "skill", to: "reference",
+        label: "Load review.md",
+        narration: "Review methodology loaded",
+        detail: "The review reference document defines the three-pass methodology: Advocate (Rapoport Rules), Critic (ACH), Judge (dialectical synthesis).",
+        state: { methodology: "Rapoport + ACH + Hegel", passes: "3" }
+      },
+      {
+        from: "claude", to: "codebase",
+        label: "Read all files",
+        narration: "Read the target code completely",
+        detail: "Before any analysis, Claude reads every file in the review scope. No changes are proposed to code that hasn't been read.",
+        state: { pass: "pre-analysis", files_read: "all in scope" }
+      },
+      {
+        from: "codebase", to: "advocate",
+        label: "Steelman",
+        narration: "Pass 1: Advocate builds strongest case",
+        detail: "Following Dennett's Rapoport Rules: restate the position clearly, list points of agreement, describe what was learned, then critique.",
+        state: { pass: "1/3 Advocate", focus: "strengths + assumptions" }
+      },
+      {
+        from: "advocate", to: "critic",
+        label: "Hand off",
+        narration: "Pass 2: Critic challenges assumptions",
+        detail: "Using Analysis of Competing Hypotheses: for each assumption, ask 'what if this is wrong?' Build a diagnostic evidence matrix.",
+        state: { pass: "2/3 Critic", method: "ACH", focus: "assumptions + evidence" }
+      },
+      {
+        from: "critic", to: "judge",
+        label: "Resolve",
+        narration: "Pass 3: Judge synthesizes verdict",
+        detail: "Dialectical synthesis (Hegel's Aufhebung): accept, reject, or elevate each finding. Deliver verdict: SHIP, SHIP WITH FIXES, or REDESIGN.",
+        state: { pass: "3/3 Judge", method: "dialectical synthesis" }
+      },
+      {
+        from: "judge", to: "developer",
+        label: "Verdict + findings",
+        narration: "Review delivered to developer",
+        detail: "Final output includes: accepted findings (P0-P3), rejected findings (critic overreach), elevated concerns (systemic), confirmed strengths, and verdict.",
+        state: { verdict: "SHIP WITH FIXES", findings: "P0:0, P1:2, P2:3" }
+      }
+    ]
+  },
+  {
+    id: "jit-learning",
+    label: "JIT Learning",
+    color: "#10b981",
+    actors: [
+      { id: "developer", label: "Developer", sub: "Learner", x: 30, y: 250, color: "#3b82f6" },
+      { id: "claude", label: "Claude Code", sub: "IDE agent", x: 250, y: 50, color: "#10b981" },
+      { id: "skill", label: "SKILL.md", sub: "jit-learning", x: 500, y: 50, color: "#10b981" },
+      { id: "target", label: "Target Tech", sub: "New library/API", x: 750, y: 50, color: "#eab308" },
+      { id: "step1", label: "Step 1", sub: "JIT Filter", x: 150, y: 450, color: "#94a3b8" },
+      { id: "step2", label: "Step 2", sub: "Macro Scan", x: 310, y: 450, color: "#3b82f6" },
+      { id: "step3", label: "Step 3", sub: "Happy Path", x: 470, y: 450, color: "#10b981" },
+      { id: "step4", label: "Step 4", sub: "Decompose", x: 630, y: 450, color: "#eab308" },
+      { id: "step5", label: "Step 5", sub: "ELI5", x: 790, y: 450, color: "#ec4899" }
+    ],
+    steps: [
+      {
+        from: "developer", to: "claude",
+        label: "\"learn Temporal\"",
+        narration: "Developer asks to learn a technology",
+        detail: "The developer says 'help me understand Temporal' or 'grok the Agent SDK'. Claude Code matches this to the JIT Learning skill.",
+        state: { topic: "Temporal", bloom_level: "Remember" }
+      },
+      {
+        from: "claude", to: "skill",
+        label: "Load jit-learning/SKILL.md",
+        narration: "JIT Learning skill activated",
+        detail: "Claude reads the skill definition and its reference document (jit-learning-system.md) which defines the 5-step Bloom's Taxonomy framework.",
+        state: { framework: "Bloom's Taxonomy", steps: "5", output: ".docx report" }
+      },
+      {
+        from: "skill", to: "target",
+        label: "Identify sources",
+        narration: "Locate learning materials",
+        detail: "Claude identifies the target: GitHub repo, docs site, SDK, or platform. Locates README, quickstart guides, API reference.",
+        state: { sources: "README, docs, quickstart", topic: "Temporal" }
+      },
+      {
+        from: "target", to: "step1",
+        label: "Define boundary",
+        narration: "Step 1: The JIT Filter (Remember)",
+        detail: "Define exactly what to learn and what NOT to learn. Draw a hard boundary: 'I need to understand Temporal workflows, NOT the Temporal server internals.'",
+        state: { step: "1/5 JIT Filter", bloom: "Remember", boundary: "workflows only" }
+      },
+      {
+        from: "step1", to: "step2",
+        label: "Scan docs",
+        narration: "Step 2: Macro Scan (Understand)",
+        detail: "Read the README and high-level docs. Identify: what pain point does this solve? One-sentence summary. Key terms glossary.",
+        state: { step: "2/5 Macro Scan", bloom: "Understand", summary: "1 sentence" }
+      },
+      {
+        from: "step2", to: "step3",
+        label: "Run quickstart",
+        narration: "Step 3: Trace Happy Path (Apply)",
+        detail: "Execute the quickstart or hello-world example. Map the user lifecycle: what inputs go in, what outputs come out, what happens in between.",
+        state: { step: "3/5 Happy Path", bloom: "Apply", lifecycle: "input -> output" }
+      },
+      {
+        from: "step3", to: "step4",
+        label: "Break apart",
+        narration: "Step 4: Functional Decomposition (Analyze)",
+        detail: "Identify 3-5 core components. Trace how they interact internally. Map the dependency graph. Find the key abstraction boundaries.",
+        state: { step: "4/5 Decompose", bloom: "Analyze", components: "3-5 identified" }
+      },
+      {
+        from: "step4", to: "step5",
+        label: "Build analogy",
+        narration: "Step 5: ELI5 Translation (Evaluate)",
+        detail: "Create a non-technical analogy that maps every concept to something familiar. 'Temporal is like a restaurant where the kitchen never forgets your order.'",
+        state: { step: "5/5 ELI5", bloom: "Evaluate", analogy: "complete" }
+      },
+      {
+        from: "step5", to: "developer",
+        label: "5-page report",
+        narration: "Learning report delivered",
+        detail: "Output is a structured 5-page .docx with one page per step: boundary, summary, lifecycle map, component diagram, and mental model analogy.",
+        state: { output: ".docx", pages: "5", proof_of_grokking: "included" }
+      }
+    ]
+  },
+  {
+    id: "red-team",
+    label: "Red Team Attack",
+    color: "#ef4444",
+    actors: [
+      { id: "developer", label: "Developer", sub: "Human user", x: 30, y: 250, color: "#3b82f6" },
+      { id: "claude", label: "Claude Code", sub: "IDE agent", x: 250, y: 50, color: "#10b981" },
+      { id: "codebase", label: "Target System", sub: "Under attack", x: 500, y: 50, color: "#06b6d4" },
+      { id: "v1", label: "Vector 1", sub: "Input Bounds", x: 100, y: 450, color: "#3b82f6" },
+      { id: "v2", label: "Vector 2", sub: "State/Concur.", x: 260, y: 450, color: "#10b981" },
+      { id: "v3", label: "Vector 3", sub: "Failure Cascade", x: 420, y: 450, color: "#eab308" },
+      { id: "v4", label: "Vector 4", sub: "Security", x: 580, y: 450, color: "#ef4444" },
+      { id: "v5", label: "Vector 5", sub: "Operational", x: 740, y: 450, color: "#8b5cf6" }
+    ],
+    steps: [
+      {
+        from: "developer", to: "claude",
+        label: "/debate red-team",
+        narration: "Developer requests red team analysis",
+        detail: "The developer says 'break this' or runs /debate red-team. Claude loads the red-team methodology from references/red-team.md.",
+        state: { mode: "red-team", mindset: "assume it breaks" }
+      },
+      {
+        from: "claude", to: "codebase",
+        label: "Read all source",
+        narration: "Read the target completely",
+        detail: "Claude reads every file in scope. The red team methodology requires understanding the full system before attacking it.",
+        state: { phase: "reconnaissance", files_read: "all in scope" }
+      },
+      {
+        from: "codebase", to: "v1",
+        label: "Test boundaries",
+        narration: "Vector 1: Input Boundaries",
+        detail: "Test with nil/null/empty/max-size/malformed inputs. Check: what happens with zero-length strings? Integer overflow? Unicode edge cases?",
+        state: { vector: "1/5 Input Bounds", tests: "nil, empty, max, malformed" }
+      },
+      {
+        from: "v1", to: "v2",
+        label: "Check state",
+        narration: "Vector 2: State and Concurrency",
+        detail: "Look for shared mutable state, TOCTOU races, partial failure modes. Can two requests modify the same resource simultaneously?",
+        state: { vector: "2/5 State", tests: "races, TOCTOU, partial failure" }
+      },
+      {
+        from: "v2", to: "v3",
+        label: "Cascade failures",
+        narration: "Vector 3: Failure Cascades",
+        detail: "What if a dependency is down? Check for retry storms, timeout propagation, missing circuit breakers, cascading failures.",
+        state: { vector: "3/5 Cascades", tests: "retries, timeouts, circuit breakers" }
+      },
+      {
+        from: "v3", to: "v4",
+        label: "Security audit",
+        narration: "Vector 4: Security",
+        detail: "Check for injection (SQL, command, template), auth bypass, authorization gaps, leaked secrets, insecure defaults.",
+        state: { vector: "4/5 Security", tests: "injection, auth, secrets" }
+      },
+      {
+        from: "v4", to: "v5",
+        label: "Ops review",
+        narration: "Vector 5: Operational",
+        detail: "Check observability (logs, metrics, traces), configuration safety, deployment rollback capability, on-call experience.",
+        state: { vector: "5/5 Operational", tests: "observability, config, rollback" }
+      },
+      {
+        from: "v5", to: "claude",
+        label: "10th Man Rule",
+        narration: "10th Man Rule applied",
+        detail: "If the system looks sound after all 5 vectors, the 10th Man Rule requires arguing the opposite: find at least one plausible failure scenario.",
+        state: { rule: "10th Man", requirement: "1 plausible failure even if system looks sound" }
+      },
+      {
+        from: "claude", to: "developer",
+        label: "Threat model + findings",
+        narration: "Red team report delivered",
+        detail: "Final report includes: threat model summary, findings by severity (P0-P3), attack surface matrix, and the 10th Man assessment.",
+        state: { findings: "P0:1, P1:3, P2:5, P3:2", report: "threat model + matrix" }
+      }
+    ]
+  },
+  {
+    id: "gallery-build",
+    label: "Gallery Index Build",
+    color: "#ec4899",
+    actors: [
+      { id: "developer", label: "Developer", sub: "Human user", x: 30, y: 250, color: "#3b82f6" },
+      { id: "claude", label: "Claude Code", sub: "IDE agent", x: 250, y: 50, color: "#10b981" },
+      { id: "skill", label: "SKILL.md", sub: "visualize-index", x: 500, y: 50, color: "#ec4899" },
+      { id: "folders", label: "Project Folders", sub: "visualizations/*/", x: 750, y: 50, color: "#eab308" },
+      { id: "templates", label: "Templates", sub: "index.html, card.html", x: 250, y: 450, color: "#8b5cf6" },
+      { id: "gallery", label: "Gallery Index", sub: "visualizations/index.html", x: 500, y: 450, color: "#ec4899" },
+      { id: "nav", label: "nav.js", sub: "Shared navigation", x: 750, y: 450, color: "#06b6d4" }
+    ],
+    steps: [
+      {
+        from: "developer", to: "claude",
+        label: "/visualize-index",
+        narration: "Developer requests gallery rebuild",
+        detail: "The developer says 'rebuild the index' or runs /visualize-index. Claude loads the gallery-building skill.",
+        state: { action: "rebuild gallery", trigger: "/visualize-index" }
+      },
+      {
+        from: "claude", to: "skill",
+        label: "Load SKILL.md",
+        narration: "Gallery skill loaded",
+        detail: "Claude reads visualize-index/SKILL.md and its templates: index.html (gallery page), card.html (card snippet), README.md, nav.js.",
+        state: { templates: "4 loaded", purpose: "gallery generation" }
+      },
+      {
+        from: "skill", to: "folders",
+        label: "Discover projects",
+        narration: "Scan for visualization folders",
+        detail: "Find all subdirectories under visualizations/ that contain both slide_01_eli5.svg and index.html. Sort alphabetically.",
+        state: { discovered: "scanning...", requirement: "slide_01 + index.html" }
+      },
+      {
+        from: "folders", to: "claude",
+        label: "Extract metadata",
+        narration: "Extract project metadata",
+        detail: "For each folder: read display name from <title>, description from deep-dive.md, detect language tags, count slides, check link availability.",
+        state: { metadata: "name, desc, tags, slides, links", per_project: true }
+      },
+      {
+        from: "claude", to: "templates",
+        label: "Fill card templates",
+        narration: "Populate card HTML snippets",
+        detail: "For each project, fill in card.html with: folder name, display name, description, language/category tags, and links (Overview, Interactive, Deep Dive).",
+        state: { cards: "N populated", layout: "3-column grid" }
+      },
+      {
+        from: "templates", to: "gallery",
+        label: "Assemble index.html",
+        narration: "Gallery page generated",
+        detail: "Cards are inserted into the index.html template. The gallery uses a 3-column grid layout with dark theme, sorted alphabetically.",
+        state: { output: "visualizations/index.html", layout: "3-col grid, dark theme" }
+      },
+      {
+        from: "claude", to: "nav",
+        label: "Copy nav.js",
+        narration: "Shared navigation deployed",
+        detail: "nav.js is copied to visualizations/nav.js. Then each project's HTML files get <!-- nav:inject --> replaced with a script tag loading it.",
+        state: { nav_injected: "all project HTMLs", script: "nav.js" }
+      },
+      {
+        from: "gallery", to: "developer",
+        label: "Gallery ready",
+        narration: "Gallery index delivered",
+        detail: "The developer opens visualizations/index.html to see all projects in a card grid with direct links to each project's overview, interactive, and deep-dive pages.",
+        state: { complete: true, files: "index.html + README.md + nav.js" }
+      }
+    ]
+  }
+];
+
+// ── App state ───────────────────────────────────────────────────────────────
+let currentScenario = 0;
+let currentStep = -1;
+let isPlaying = false;
+let playTimer = null;
+let speed = 1;
+const STEP_DURATION = 2000;
+
+// ── Render functions ────────────────────────────────────────────────────────
+function renderTabs() {
+  const el = document.getElementById("scenarioTabs");
+  el.innerHTML = SCENARIOS.map((s, i) =>
+    `<div class="tab ${i === currentScenario ? 'active' : ''}" onclick="switchScenario(${i})" style="border-color: ${i === currentScenario ? s.color : ''}">${s.label}</div>`
+  ).join("");
+}
+
+function renderCanvas() {
+  const s = SCENARIOS[currentScenario];
+  const svg = document.getElementById("canvas");
+
+  // Keep defs, clear rest
+  const defs = svg.querySelector("defs").outerHTML;
+  svg.innerHTML = defs;
+
+  // Draw actors
+  s.actors.forEach(a => {
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.setAttribute("class", "actor");
+    g.setAttribute("id", `actor-${a.id}`);
+    g.innerHTML = `
+      <rect x="${a.x}" y="${a.y}" width="140" height="70" rx="10" fill="#111827" stroke="${a.color}" stroke-width="2"/>
+      <text x="${a.x + 70}" y="${a.y + 30}" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="${a.color}" text-anchor="middle">${escapeXml(a.label)}</text>
+      <text x="${a.x + 70}" y="${a.y + 50}" font-family="'JetBrains Mono', monospace" font-size="10" fill="#94a3b8" text-anchor="middle">${escapeXml(a.sub)}</text>
+    `;
+    svg.appendChild(g);
+  });
+}
+
+function escapeXml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function renderProgress() {
+  const s = SCENARIOS[currentScenario];
+  const bar = document.getElementById("progressBar");
+  bar.innerHTML = s.steps.map((_, i) => {
+    let cls = "dot";
+    if (i < currentStep) cls += " done";
+    if (i === currentStep) cls += " current";
+    return `<div class="${cls}" onclick="goToStep(${i})"></div>`;
+  }).join("");
+  document.getElementById("stepLabel").textContent = `${currentStep + 1} / ${s.steps.length}`;
+}
+
+function renderState() {
+  const s = SCENARIOS[currentScenario];
+  const panel = document.getElementById("statePanel");
+  if (currentStep < 0) {
+    panel.innerHTML = '<div class="state-item"><div class="state-val" style="color:#94a3b8">Press Play or Next to begin</div></div>';
+    return;
+  }
+  const state = s.steps[currentStep].state || {};
+  panel.innerHTML = Object.entries(state).map(([k, v]) =>
+    `<div class="state-item highlight"><div class="state-key">${escapeXml(k)}</div><div class="state-val">${escapeXml(String(v))}</div></div>`
+  ).join("");
+}
+
+function renderNarration() {
+  const s = SCENARIOS[currentScenario];
+  if (currentStep < 0) {
+    document.getElementById("narTitle").textContent = `${s.label} — Press Play to begin`;
+    document.getElementById("narDetail").textContent = "";
+    return;
+  }
+  const step = s.steps[currentStep];
+  document.getElementById("narTitle").textContent = step.narration;
+  document.getElementById("narDetail").textContent = step.detail;
+}
+
+function animateStep() {
+  const s = SCENARIOS[currentScenario];
+  if (currentStep < 0 || currentStep >= s.steps.length) return;
+  const step = s.steps[currentStep];
+  const svg = document.getElementById("canvas");
+
+  // Find actor positions
+  const fromActor = s.actors.find(a => a.id === step.from);
+  const toActor = s.actors.find(a => a.id === step.to);
+  if (!fromActor || !toActor) return;
+
+  const fx = fromActor.x + 70, fy = fromActor.y + 35;
+  const tx = toActor.x + 70, ty = toActor.y + 35;
+
+  // Fade out previous messages completely
+  svg.querySelectorAll(".msg-group").forEach(g => {
+    gsap.to(g, { opacity: 0, duration: 0.5 });
+  });
+
+  // Create message group
+  const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  g.setAttribute("class", "msg-group");
+  g.setAttribute("opacity", "0");
+
+  // Line
+  const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  line.setAttribute("x1", fx); line.setAttribute("y1", fy);
+  line.setAttribute("x2", tx); line.setAttribute("y2", ty);
+  line.setAttribute("stroke", fromActor.color);
+  line.setAttribute("stroke-width", "1.5");
+  line.setAttribute("stroke-dasharray", "6,4");
+  line.setAttribute("marker-end", "url(#arrowhead)");
+  g.appendChild(line);
+
+  // Label with background pill
+  const mx = (fx + tx) / 2, my = (fy + ty) / 2 - 15;
+  const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  text.setAttribute("x", mx); text.setAttribute("y", my);
+  text.setAttribute("font-family", "'JetBrains Mono', monospace");
+  text.setAttribute("font-size", "10");
+  text.setAttribute("fill", "#e2e8f0");
+  text.setAttribute("text-anchor", "middle");
+  text.textContent = step.label;
+  g.appendChild(text);
+
+  svg.appendChild(g);
+
+  // Measure text and insert background pill behind it
+  const bbox = text.getBBox();
+  const pad = 8;
+  const pill = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  pill.setAttribute("x", bbox.x - pad);
+  pill.setAttribute("y", bbox.y - 3);
+  pill.setAttribute("width", bbox.width + pad * 2);
+  pill.setAttribute("height", bbox.height + 6);
+  pill.setAttribute("rx", "4");
+  pill.setAttribute("fill", "#111827");
+  pill.setAttribute("stroke", fromActor.color);
+  pill.setAttribute("stroke-width", "1");
+  g.insertBefore(pill, text);
+
+  // Animate dot
+  const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  dot.setAttribute("cx", fx); dot.setAttribute("cy", fy);
+  dot.setAttribute("r", "6");
+  dot.setAttribute("fill", fromActor.color);
+  svg.appendChild(dot);
+
+  const dur = 0.8 / speed;
+  gsap.to(g, { opacity: 1, duration: 0.2 / speed });
+  gsap.to(dot, {
+    attr: { cx: tx, cy: ty },
+    duration: dur,
+    ease: "power2.inOut",
+    onComplete: () => dot.remove()
+  });
+
+  // Highlight destination actor
+  const destEl = document.getElementById(`actor-${step.to}`);
+  if (destEl) {
+    const rect = destEl.querySelector("rect");
+    gsap.fromTo(rect,
+      { attr: { "stroke-width": 4 } },
+      { attr: { "stroke-width": 2 }, duration: 1 / speed, delay: dur }
+    );
+  }
+}
+
+// ── Controls ────────────────────────────────────────────────────────────────
+function switchScenario(idx) {
+  stopPlay();
+  currentScenario = idx;
+  currentStep = -1;
+  renderTabs();
+  renderCanvas();
+  renderProgress();
+  renderState();
+  renderNarration();
+}
+
+function goToStep(idx) {
+  stopPlay();
+  currentStep = -1;
+  renderCanvas();
+  // Replay all steps up to idx
+  for (let i = 0; i <= idx; i++) {
+    currentStep = i;
+    animateStep();
+  }
+  renderProgress();
+  renderState();
+  renderNarration();
+}
+
+function stepForward() {
+  const s = SCENARIOS[currentScenario];
+  if (currentStep < s.steps.length - 1) {
+    currentStep++;
+    animateStep();
+    renderProgress();
+    renderState();
+    renderNarration();
+  } else {
+    stopPlay();
+  }
+}
+
+function stepBack() {
+  if (currentStep > 0) {
+    goToStep(currentStep - 1);
+  } else if (currentStep === 0) {
+    currentStep = -1;
+    renderCanvas();
+    renderProgress();
+    renderState();
+    renderNarration();
+  }
+}
+
+function togglePlay() {
+  if (isPlaying) {
+    stopPlay();
+  } else {
+    const s = SCENARIOS[currentScenario];
+    if (currentStep >= s.steps.length - 1) {
+      // Reset to beginning and start playing
+      currentStep = -1;
+      renderCanvas();
+      renderProgress();
+      renderState();
+      renderNarration();
+    }
+    startPlay();
+  }
+}
+
+function startPlay() {
+  isPlaying = true;
+  document.getElementById("playBtn").innerHTML = "&#9724; Pause";
+  document.getElementById("playBtn").classList.add("active");
+  // Dim all actors to 40% so the active message pill stands out
+  document.querySelectorAll("#canvas .actor").forEach(a => {
+    gsap.to(a, { opacity: 0.4, duration: 0.3 });
+  });
+  playNext();
+}
+
+function stopPlay() {
+  isPlaying = false;
+  clearTimeout(playTimer);
+  const s = SCENARIOS[currentScenario];
+  const btn = document.getElementById("playBtn");
+  btn.classList.remove("active");
+  if (currentStep >= s.steps.length - 1) {
+    btn.innerHTML = "&#8635; Play Again";
+  } else {
+    btn.innerHTML = "&#9654; Play";
+  }
+}
+
+function playNext() {
+  if (!isPlaying) return;
+  const s = SCENARIOS[currentScenario];
+  if (currentStep >= s.steps.length - 1) {
+    stopPlay();
+    return;
+  }
+  stepForward();
+  playTimer = setTimeout(playNext, STEP_DURATION / speed);
+}
+
+// Speed controls
+function renderSpeedControls() {
+  const speeds = [0.5, 1, 1.5, 2, 3];
+  document.getElementById("speedGroup").innerHTML = speeds.map(s =>
+    `<button class="speed-btn ${s === speed ? 'active' : ''}" onclick="setSpeed(${s})">${s}x</button>`
+  ).join("");
+}
+
+function setSpeed(s) {
+  speed = s;
+  renderSpeedControls();
+  if (isPlaying) {
+    clearTimeout(playTimer);
+    playTimer = setTimeout(playNext, STEP_DURATION / speed);
+  }
+}
+
+// ── Keyboard shortcuts ──────────────────────────────────────────────────────
+document.addEventListener("keydown", (e) => {
+  if (e.key === " ") { e.preventDefault(); togglePlay(); }
+  else if (e.key === "ArrowRight") stepForward();
+  else if (e.key === "ArrowLeft") stepBack();
+  else if (e.key >= "1" && e.key <= "9") {
+    const idx = parseInt(e.key) - 1;
+    if (idx < SCENARIOS.length) switchScenario(idx);
+  }
+});
+
+// ── Init ────────────────────────────────────────────────────────────────────
+renderTabs();
+renderCanvas();
+renderProgress();
+renderState();
+renderNarration();
+renderSpeedControls();
+</script>
+</body>
+</html>
