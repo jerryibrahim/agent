@@ -51,8 +51,8 @@ Use `web_fetch` and `web_search` aggressively. Do not guess at architecture — 
 
 ## Output Format
 
-Produce **five distinct pages** in a single `.docx` file (use the `docx` skill).
-Each page maps to exactly one step from the framework.
+Produce **five distinct sections** in a single `.md` file.
+Each section maps to exactly one step from the framework.
 
 Read `references/jit-learning-system.md` for the exact definition of each step.
 The five pages are:
@@ -94,8 +94,6 @@ The five pages are:
 - Use callout boxes (shaded tables) for key outputs: one-sentence summary, pipeline diagram, mental model
 - Use comparison tables wherever two options, phases, or tiers exist
 - End each page with a horizontal rule and a bold one-sentence **Output** summary
-
-Refer to the `docx` skill for all `.docx` creation mechanics.
 
 ---
 
