@@ -9,4 +9,4 @@
 
 ---
 
-_Generated with `/visualize-codebase`_
+_Generated with AI Skill [`/visualize-codebase`](https://github.com/Mirantis/ai-guide/tree/main/examples/claude-code/skills/research/visualize-codebase/)_
