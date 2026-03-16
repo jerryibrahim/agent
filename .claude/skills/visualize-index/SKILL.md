@@ -29,6 +29,9 @@ This skill uses reference templates in `templates/` relative to this SKILL.md fi
   `{{PROJECT_NAME}}`, `{{PROJECT_DESCRIPTION}}`, `{{CARDS}}`
 - **`templates/card.html`** — Single card snippet. Placeholders:
   `{{FOLDER}}`, `{{DISPLAY_NAME}}`, `{{DESCRIPTION}}`, `{{TAGS}}`, `{{LINKS}}`
+- **`templates/nav.js`** — Shared navigation script injected into subfolder pages.
+  Detects current project and page from URL, renders a fixed nav bar with
+  "All Projects" link and sibling page links (Overview, Interactive, Deep Dive).
 - **`templates/README.md`** — Markdown gallery page. Placeholders:
   `{{PROJECT_NAME}}`, `{{PROJECT_DESCRIPTION}}`, `{{TABLE_ROWS}}`
 - **`templates/readme-row.md`** — Single table row snippet. Placeholders:
@@ -127,12 +130,37 @@ For any folder under `visualizations/` that has `deep-dive.md` but no
 `deep-dive.html`, convert the markdown to a styled HTML page. Use this approach:
 
 - Dark theme matching the rest of the site (`#0f172a` background)
-- Sticky breadcrumb nav: All Projects / {Component} / Deep Dive
+- No built-in navigation bar (the nav injection in Step 3b handles this)
 - Proper rendering of headings, paragraphs, bold, code, lists, tables
 - Same CSS variables and fonts as the main index
+- Include `<!-- nav:inject -->` right after `<body>` so Step 3b can process it
 
 Write a Python conversion script if more than one file needs converting, or
 write the HTML directly for a single file.
+
+---
+
+## Step 3b: Inject Shared Navigation
+
+The `visualize-codebase` skill generates HTML files with a `<!-- nav:inject -->`
+comment placeholder after `<body>`. This step replaces that placeholder with a
+shared navigation script that provides "All Projects" link and sibling page
+navigation (Overview / Interactive / Deep Dive).
+
+For each `index.html`, `interactive.html`, and `deep-dive.html` in every
+subfolder under `visualizations/`:
+
+1. Check if the file contains `<!-- nav:inject -->`.
+2. If found, replace `<!-- nav:inject -->` with `<script src="../nav.js"></script>`.
+3. If the file already contains `nav.js` (from a previous run), skip it.
+
+This ensures:
+- **First run**: the placeholder is swapped for the script tag.
+- **Subsequent runs**: files are left untouched (idempotent).
+- **Standalone use**: files without the placeholder or script tag are not modified.
+
+Copy `templates/nav.js` (relative to this skill file) to `visualizations/nav.js`,
+overwriting any existing version to ensure consistency.
 
 ---
 
@@ -199,7 +227,11 @@ description from Step 4):
    (header + separator + one row per project)
 3. Verify all linked files exist (`index.html`, `interactive.html`, `deep-dive.html`
    in each subfolder under `visualizations/`)
-4. Report a summary: how many projects were indexed, any missing files
+4. Verify `visualizations/nav.js` exists
+5. Verify no subfolder HTML files still contain `<!-- nav:inject -->` (all should
+   have been replaced with the script tag in Step 3b)
+6. Report a summary: how many projects were indexed, how many files had nav
+   injected, any missing files
 
 ---
 

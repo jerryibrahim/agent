@@ -21,8 +21,8 @@ copy-claude-skill:
 ifndef SKILL
 	$(error Usage: make copy-claude-skill SKILL=<skill-name>)
 endif
-	@mkdir -p $(DEST)/skills
-	cp -r $(SRC)/skills/$(SKILL) $(DEST)/skills/$(SKILL)
+	@mkdir -p $(DEST)/skills/$(SKILL)
+	cp -r $(SRC)/skills/$(SKILL)/ $(DEST)/skills/$(SKILL)/
 	@echo "Copied skill '$(SKILL)' to $(DEST)/skills/$(SKILL)"
 
 ## Copy all skills to ~/.claude/skills

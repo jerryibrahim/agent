@@ -8,13 +8,6 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #0f172a; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; line-height: 1.7; }
 
-  /* Top bar */
-  .topbar { background: #0a0e1a; border-bottom: 1px solid #1e293b; padding: 16px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 10; }
-  .topbar a { color: #3b82f6; text-decoration: none; font-size: 14px; }
-  .topbar a:hover { text-decoration: underline; }
-  .topbar .sep { color: #334155; }
-  .topbar .title { color: #e2e8f0; font-weight: 600; font-size: 14px; }
-
   /* Content */
   .content { max-width: 860px; margin: 0 auto; padding: 40px 24px 80px; }
 
@@ -40,14 +33,7 @@
 </style>
 </head>
 <body>
-
-<div class="topbar">
-  <a href="../index.html">All Projects</a>
-  <span class="sep">/</span>
-  <a href="index.html">{{PROJECT_NAME}}</a>
-  <span class="sep">/</span>
-  <span class="title">Deep Dive</span>
-</div>
+<!-- nav:inject -->
 
 <div class="content">
 <h1>{{PROJECT_NAME}} Deep-Dive Analysis</h1>
