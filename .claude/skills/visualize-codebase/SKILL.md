@@ -24,6 +24,12 @@ string construction, and the interactive walkthrough uses GSAP from CDN.
 
 If no arguments are provided, run all phases.
 
+### Output directory
+
+All generated files (SVGs, HTML, Python script, markdown) go directly into the
+`visualizations/` folder at the project root. Do **not** create a subdirectory —
+there is no `visualizations/<project>/` nesting.
+
 ### `{{PROJECT_NAME}}` convention
 
 `{{PROJECT_NAME}}` is derived from the **root folder name of the repository** (i.e., the
@@ -61,7 +67,7 @@ with project-specific content from Phase 0 exploration.
 ### How to use the template
 
 1. Copy `templates/generate_visuals.py` to the project's visualization directory
-   (e.g., `visualizations/<project>/generate_visuals.py`).
+   (e.g., `visualizations/generate_visuals.py`).
 2. Replace the `DATA` dict (everything below the `#### PROJECT DATA ####` marker)
    with project-specific data. Each key (1-11) maps to one slide's data dict.
 3. Do **NOT** modify anything above the marker — helpers and renderers are shared.
