@@ -71,11 +71,6 @@ Copy or symlink the `.claude/` directory into your project root. Claude Code wil
 ```text
 your-project/
 ├── .claude/
-│   ├── commands/
-│   │   └── debate/
-│   │       ├── review.md
-│   │       ├── red-team.md
-│   │       └── steelman.md
 │   └── skills/
 │       ├── commit/
 │       ├── debate/
