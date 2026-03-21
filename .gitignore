@@ -70,3 +70,4 @@ dist/
 # -----------------------------------------------
 # Project specific
 .mcp.json
+skills_temp/*
