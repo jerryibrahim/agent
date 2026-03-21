@@ -24,17 +24,45 @@ Constructs the strongest possible counter-argument to a position, then evaluates
 
 Applies the Just-in-Time Learning framework to rapidly understand any new technology. Produces a structured five-page report grounded in Bloom's Taxonomy, progressing from a hard JIT boundary through functional decomposition to an ELI5 mental model.
 
+### Visualize Codebase
+
+Generates interactive visual documentation for any codebase — SVG infographics descending from 50,000 ft to ground level, plus GSAP-animated sequence diagrams. Zero external Python dependencies; all SVGs are built with pure Python string construction. Produces:
+
+- **Static SVGs** — 10-12 slides covering ELI5, system context, architecture layers, domain model, request lifecycle, routing, state machines, database schema, API routes, code structure, and config
+- **Interactive walkthrough** — GSAP-animated sequence diagrams for major use cases
+- **Deep-dive analysis** — design decisions, invariants, and failure mode documentation
+
+### Visualize Index
+
+Builds or rebuilds an `index.html` gallery inside `visualizations/`, stitching together all project folders into a dark-themed 3-column grid with links to each project's Overview, Interactive, and Deep Dive pages.
+
+### Propose
+
+Deep-analyzes a topic and proposes 2-4 implementation options with pros, cons, effort, and risk. Useful for evaluating approaches before committing to an implementation strategy.
+
 ### Commit
 
 Automates git commits with a user-provided summary as the first line and an auto-generated bullet-point body summarizing key changes. Stages files individually (never `git add .`) and skips secrets and `.vscode/`.
 
 ## Slash Commands
 
-| Command            | Description               |
-| ------------------ | ------------------------- |
-| `/debate:review`   | Run an adversarial review |
-| `/debate:red-team` | Run a red team analysis   |
-| `/debate:steelman` | Build a counter-argument  |
+| Command               | Description                     |
+| --------------------- | ------------------------------- |
+| `/debate:review`      | Run an adversarial review       |
+| `/debate:red-team`    | Run a red team analysis         |
+| `/debate:steelman`    | Build a counter-argument        |
+| `/visualize-codebase` | Generate visual codebase docs   |
+| `/visualize-index`    | Build the visualization gallery |
+| `/propose`            | Propose implementation options  |
+| `/commit`             | Create a structured git commit  |
+
+## /visualize-codebase Example
+
+An example of the **Visualize Codebase** skill run on this repo. These files live in the `docs/` directory and are served via GitHub Pages:
+
+- [Overview](https://jerryibrahim.github.io/agent/) — slideshow of SVG infographics from 50,000 ft to ground level
+- [Interactive Walkthrough](https://jerryibrahim.github.io/agent/interactive.html) — GSAP-animated sequence diagrams of key flows
+- [Deep Dive](https://jerryibrahim.github.io/agent/deep-dive.html) — design decisions, invariants, and failure mode analysis
 
 ## Installation
 
@@ -49,11 +77,12 @@ your-project/
 │   │       ├── red-team.md
 │   │       └── steelman.md
 │   └── skills/
-│       ├── adversarial-review/
-│       ├── red-team/
-│       ├── steelman/
+│       ├── commit/
+│       ├── debate/
 │       ├── jit-learning/
-│       └── commit/
+│       ├── propose/
+│       ├── visualize-codebase/
+│       └── visualize-index/
 ```
 
 ## Release Notes
