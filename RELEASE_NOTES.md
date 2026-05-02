@@ -1,5 +1,16 @@
 # Release Notes
 
+## v1.2.0 — 2026-05-02
+
+### New Skills
+
+- **PR Analysis** skill — surveys all open PRs, builds a file-overlap matrix, and recommends a merge sequence that minimizes conflicts
+- **PR Review** skill — full PR review workflow that creates an isolated git worktree for the PR branch, runs four parallel review agents (general code, silent-failure hunter, test analyzer, security), checks for stale base and merge conflicts, and saves the review to `out/PR/<n>_PR.md` for copy-paste into GitHub
+- **PR Review Cleanup** skill — removes pr-review worktrees by PR number, branch, path, or `--all`; refuses to remove worktrees with uncommitted changes or unpushed commits unless `--force`
+- Slash commands added: `/pr-analysis`, `/pr-review`, `/pr-review-cleanup`
+
+---
+
 ## v1.1.0 — 2026-03-14
 
 ### New Skills

@@ -1,10 +1,11 @@
 ---
 name: pr-review
 description: >-
-  Full PR review workflow. Checks out the PR branch from a clean main,
-  runs parallel review agents (code, security, tests, errors), checks for
-  stale base and merge conflicts, and saves the review to out/PR/ for
-  copy-paste into GitHub.
+  Full PR review workflow. Creates an isolated git worktree for the PR
+  branch, runs parallel review agents (code, security, tests, errors),
+  checks for stale base and merge conflicts, and saves the review to
+  out/PR/ in the original repo. The worktree is left in place so you can
+  rebase or push follow-up fixes; clean up with /pr-review-cleanup when done.
 argument-hint: "<PR number or branch name>"
 ---
 
@@ -38,18 +39,26 @@ If a ticket is found, note it in the review header (e.g., "Ticket: KCS-64").
 
 ## Scope Detection
 
-Determine what to review based on current state:
+Determine what to review based on current state.
 
-**If `$ARGUMENTS` is a PR number or branch name**, prepare a clean checkout:
+**If `$ARGUMENTS` is a PR number or branch name**, prepare an isolated worktree so the user's current working tree is never disturbed:
 
-1. Stash any uncommitted changes if the working tree is dirty (`git stash --include-untracked`)
-2. Switch to main and pull latest (`git checkout main && git pull --all`)
-3. Checkout the target:
-   - PR number: `gh pr checkout <number>`
-   - Branch name: `git fetch origin <branch> && git checkout <branch>`
-4. Note if a stash was created so the user can restore it after the review
+1. Capture the original repo root: `ORIGINAL_REPO=$(git rev-parse --show-toplevel)`. The review file will be written here, not in the worktree.
+2. Resolve the target branch:
+   - PR number: `gh pr view <number> --json headRefName --jq '.headRefName'`
+   - Branch name: use `$ARGUMENTS` directly
+3. Choose a worktree path: `WORKTREE="$(dirname "$ORIGINAL_REPO")/$(basename "$ORIGINAL_REPO")-pr-<n>"` (or `-<branch-slug>` for the branch case). Prefer the PR number — it is short and unique.
+4. Check whether the path already exists:
+   - If it is a registered worktree (`git worktree list --porcelain`), ask whether to reuse or remove and recreate.
+   - If it is a stray directory, ask before removing.
+5. Check whether the target branch is already checked out elsewhere (`git worktree list --porcelain | grep "branch refs/heads/<branch>"`). If so, surface that path and stop — do not create a duplicate.
+6. Fetch and create the worktree:
+   - `git -C "$ORIGINAL_REPO" fetch origin`
+   - `git -C "$ORIGINAL_REPO" worktree add --detach "$WORKTREE"`
+   - From inside `$WORKTREE`, run `gh pr checkout <number>` (PR case) or `git checkout <branch>` (branch case).
+7. Run all subsequent review steps with `-C "$WORKTREE"` or after `cd "$WORKTREE"`. Do **not** mutate the original working tree.
 
-**If no `$ARGUMENTS`**, use the current branch as-is.
+**If no `$ARGUMENTS`**, use the current branch in the current working tree as-is. No worktree is created; `$ORIGINAL_REPO` and `$WORKTREE` both refer to the current repo root, and references to `$WORKTREE` below should be read accordingly.
 
 ### Gather PR Context
 
@@ -133,6 +142,8 @@ Conditionally launch these 2 additional agents:
 - **Type design analyzer** — launch if the diff introduces new struct types, interfaces, or type aliases
 - **Code simplifier** — launch if the diff adds more than 500 new lines of non-test code
 
+Each agent prompt must explicitly include the worktree path (e.g., "Read all files from `$WORKTREE`; do not touch the original repo at `$ORIGINAL_REPO`.") so agents resolve files in the isolated checkout, not in the user's working tree.
+
 Compile all agent findings into a single report.
 
 ### Suggested Verification
@@ -179,5 +190,27 @@ After presenting the review to the user and incorporating any feedback or edits:
    - From `$ARGUMENTS` if a PR number was provided
    - Otherwise from `gh pr view --json number` on the current branch
    - If no PR exists, use the branch name as the filename
-2. Write the final review to `out/PR/<PR_number>_PR.md` (create `out/PR/` if needed)
-3. The file should contain the complete review formatted for direct copy-paste into a GitHub PR comment — no extra preamble or instructions, just the review content
+2. Write the final review to `$ORIGINAL_REPO/out/PR/<PR_number>_PR.md` (create `out/PR/` in the original repo if needed). Always write to `$ORIGINAL_REPO`, never the worktree, so the file is where the user expects it.
+3. The file should contain the complete review formatted for direct copy-paste into a GitHub PR comment — no extra preamble or instructions, just the review content. Do **not** include the worktree footer (next section) inside the saved file.
+
+### Worktree Footer
+
+After the review file is saved, print a footer to the chat showing where the worktree lives and exactly how to clean it up. Do not auto-remove the worktree — the user often rebases, fixes up, or force-pushes from inside it. Format:
+
+```text
+Worktree:  <WORKTREE>  (branch: <branch-name>)
+Review:    <ORIGINAL_REPO>/out/PR/<PR_number>_PR.md
+
+Enter the worktree:
+  cd <WORKTREE>
+
+When done — clean up with:
+  /pr-review-cleanup <PR_number>
+
+Or manually:
+  git -C "<ORIGINAL_REPO>" worktree remove "<WORKTREE>" && git -C "<ORIGINAL_REPO>" worktree prune
+```
+
+Interpolate the actual paths so the user can copy/paste without editing.
+
+This footer is for the chat only — it must not be written into the saved review file.
