@@ -15,6 +15,7 @@ You are reviewing a pull request for domain correctness, design, logging standar
 5. **Cross-boundary access** — No cross-DB queries; services communicate only via HTTP. No direct store access from handlers.
 6. **Spelling and typos** — Variable names, string literals, comments, error messages, log messages, and documentation.
 7. **Debug residue** — TODOs left in committed code, commented-out blocks, debug `fmt.Println` / `console.log`, scratch test data, or hardcoded local hostnames.
+8. **Race conditions and concurrency correctness** — Shared mutable state accessed without locks; check-then-act sequences where the check can be invalidated before the action; map / slice mutation across goroutines; missing `sync.Once` for one-time init; deadlock potential from nested locks acquired in different orders; goroutines that outlive the request context; channel sends/receives that can block forever. Flag any concurrent path the diff introduces or modifies, and require a matching `-race`-exercised test.
 
 ## What to ignore
 

@@ -150,12 +150,126 @@ files would silently revert changes from recently merged PRs:
 
 ---
 
-## Phase 3: Dispatch Review Agents
+## Phase 3: Structural Surface Checks
+
+These are file-system / contract-level checks the reviewer runs directly,
+not via subagents. Each can produce blocking or non-blocking findings that
+flow into Phase 5 finding-triage alongside the agent results.
+
+### 3a. OpenAPI contract drift
+
+Trigger: the diff modifies handler files, route-registration calls
+(`routes.go`, `routes_test.go`, `Method("...")`, `HandleFunc("...")`,
+`mux.Handle("...")`), or any code that registers HTTP endpoints.
+
+Only run if the repo has an OpenAPI bundle. Detect by checking for any of:
+`api/contract/`, `api/openapi.yaml`, `openapi.yaml`, `swagger.yaml`,
+`api/**/openapi.yaml`.
+
+1. List route additions and changes from the diff. `routes_test.go` is often
+   the cleanest source — each entry pins method + path.
+2. For each new route, grep the OpenAPI bundle for a matching `path` entry
+   and matching method (`get`, `post`, `delete`, etc.).
+3. For each modified route (method change, path-param rename, new query
+   param), check the OpenAPI entry reflects the change.
+4. For removed routes, check the OpenAPI bundle no longer references them.
+
+If a new **public** route has no OpenAPI entry, flag as a blocker candidate.
+The project standard is "spec changes ship with implementation" — a new
+endpoint without spec is a contract regression (see PR #311 C3 as the
+canonical precedent). Internal-only routes (admin, debug) may be exempt
+depending on project convention; check `CLAUDE.md` or `api/contract/README`.
+
+Required fix: new path file under `api/contract/paths/...`, path entry in
+`api/contract/openapi.yaml`, and bundle regeneration. Cite a sibling path
+file as a shape reference.
+
+### 3b. Helm sample-values sync
+
+Trigger: the diff modifies any `deploy/helm/**/values.yaml` keys — added,
+removed, renamed, or restructured.
+
+Only run if the repo has Helm charts. Detect via `deploy/helm/` or
+`charts/`.
+
+1. List every `values-*.yaml` file in the repo:
+
+   ```bash
+   find deploy/helm -name 'values-*.yaml' -type f
+   ```
+
+   Typical names: `values-secrets-sample.yaml`, `values-secret-kind.yaml`,
+   `values-kind.yaml`, `values-secrets-dev*.yaml`, `values-prod.yaml`.
+
+2. For each **removed or renamed** key, grep all sample files for the old
+   key path. Any sample file still using the old path is a finding.
+
+3. For each **new** key that requires operator configuration (not just an
+   internal default), check that at least one sample file demonstrates
+   canonical usage with the right indentation context.
+
+4. If a key was renamed without a deprecation shim, flag whether existing
+   `values-*.yaml` overlays in the repo OR in known operator-managed paths
+   (the user may keep these under `~/k/k8/...` per their workflow) would
+   break on next `helm upgrade`. PR #316 I1 is the canonical precedent —
+   the rename worked at the chart level but broke every cluster's overlay.
+
+Common severity calls:
+- Rename with no shim + sample still uses old key → blocker if `helm
+  upgrade` would fail; otherwise "worth addressing before merge."
+- New required key with no sample → "worth addressing before merge."
+- Renamed key with deprecation shim in `_helpers.tpl` → non-blocking; note
+  the migration window.
+
+### 3c. DB migration numbering
+
+Trigger: the diff adds a file under `migrations/`, `db/migrations/`, or
+`services/*/db/migrations/`.
+
+1. List migration files on the branch grouped by service:
+
+   ```bash
+   git -C "$WORKTREE" diff main..HEAD --name-only -- '**/migrations/*.sql'
+   ```
+
+2. List migration numbers currently on `main` for the same service:
+
+   ```bash
+   git -C "$WORKTREE" ls-tree -r --name-only main -- '<service>/migrations/' \
+     | sort
+   ```
+
+3. Check recently merged PRs for migration adds: `gh pr list --state merged
+   -L 20 --json number,title,files`. Each migration `NNNNNN_name.up.sql`
+   has a numeric prefix.
+
+4. Flag:
+   - **Number collision** — the PR adds `000009_foo.up.sql` and a
+     recently merged PR (or another open PR) also added `000009_*.up.sql`.
+     This is a hard blocker; one of the two must be renumbered before
+     merge.
+   - **Gap in numbering** — the PR adds `000011_*.up.sql` but `000010_*`
+     doesn't exist. Sometimes intentional (matching another branch);
+     usually a typo. Flag as PROCESS.
+   - **Out-of-order rename** — the PR renames an existing migration. This
+     is a blocker on any production system that has already applied the
+     old name; rename is only safe pre-release.
+   - **Missing `down.sql`** — if the convention requires paired
+     up/down files, flag the missing partner.
+
+The migration-numbering check is the highest-value low-effort guard against
+silently merging two PRs that both try to claim the same number — the
+collision usually fails CI but only after merge. Catching it pre-merge
+avoids the cleanup PR.
+
+---
+
+## Phase 4: Dispatch Review Agents
 
 For each agent, read its prompt template from `templates/agents/`, substitute
 `{{WORKTREE}}` and `{{BRANCH_NAME}}`, and dispatch in parallel.
 
-**Always launch (4 agents):**
+**Always launch (5 agents):**
 
 | Agent | Template |
 |-------|----------|
@@ -163,6 +277,7 @@ For each agent, read its prompt template from `templates/agents/`, substitute
 | Silent failure hunter | `templates/agents/silent-failure-hunter.md` |
 | Test analyzer | `templates/agents/test-analyzer.md` |
 | Security reviewer | `templates/agents/security-reviewer.md` |
+| Scalability auditor | `templates/agents/scalability-auditor.md` |
 
 **Conditionally launch:**
 
@@ -179,12 +294,80 @@ section enforces this — do not edit it out when substituting placeholders.
 
 ---
 
-## Phase 4: Compile Full Review
+## Phase 5: Finding Triage
+
+Before compiling the review, deep-analyze every finding one-by-one. This
+phase compares each candidate finding against the rest of the codebase and
+either drops it or upgrades it with a concrete recommended fix. The
+input is the union of agent findings (Phase 4) and structural-check
+findings (Phase 3). The output is a triaged set ready for the compile.
+
+This is the load-bearing quality step. Agents produce many candidate
+findings — some are noise (already the project's convention), some are
+duplicates of each other, some are correct but lack a fix. Skipping this
+phase produces reviews that flag things the author has to push back on.
+
+### Procedure for each finding
+
+1. **Read the referenced code.** Open the file at the cited line and read
+   enough surrounding context to understand the function's role and the
+   data flow into the cited line. If the agent only quoted a snippet, you
+   may be missing context the agent didn't see.
+2. **Compare to codebase patterns.** Look for sister implementations:
+   - Other handlers / services / queries that do the same kind of thing.
+   - The pattern used in the most-recently-merged code that touches this
+     area (often the canonical shape).
+   - Any `CLAUDE.md`, package-level doc, or `README` that codifies a
+     convention.
+   - Existing tests that pin the expected behavior — if the codebase
+     already tests the "correct" shape and the diff matches it, the
+     finding is likely noise.
+3. **Decide drop or keep:**
+   - **Drop** if the flagged pattern matches the established convention
+     elsewhere in the codebase; another finding already covers it; the
+     agent misread the code (e.g., flagged a `_` ignored error that is
+     actually intentional and documented); there's a project-level
+     exception that supersedes the generic rule.
+   - **Keep** if codebase evidence confirms the issue; the surrounding
+     code shows the failure mode is reachable; no countervailing
+     convention exists.
+4. **Attach a recommended fix to every kept finding.** "Add error
+   handling" is not a fix — name the specific change:
+   - The exact code or SQL diff (often 3–10 lines).
+   - Multiple options (Option A / Option B) with one-paragraph pros/cons
+     each when more than one shape is defensible.
+   - The regression test that should accompany the fix, named by file and
+     by the invariant it pins.
+5. **Re-classify severity if the triage reveals new information.** If a
+   `CRITICAL` agent finding turns out to be a project convention, drop
+   it. If a `SUGGESTION` finding turns out to be a real bug after reading
+   the surrounding code, promote it.
+
+### Deduplication
+
+Multiple agents often flag the same underlying issue from different angles
+(e.g., silent-failure-hunter sees a swallowed error; security-reviewer
+sees the same error path as an information-leak vector). Merge these into
+a single finding that captures both angles. Triage output should have
+zero duplicates by file:line.
+
+### Recording the triage
+
+Triage produces a working list per finding with one of:
+- `DROPPED — <reason>` (these do not appear in the final review).
+- `KEPT — <recommended-fix-summary>` (these flow into Phase 6).
+
+Keep this working list in your scratch space; it does not appear in the
+saved review or the GitHub comment.
+
+---
+
+## Phase 6: Compile Full Review
 
 Read `templates/review.md` and substitute `{{BRANCH_NAME}}`, `{{JIRA_TICKET}}`,
 `{{REVIEW_TYPE}}` (`pre-commit` or `pre-merge`).
 
-### Step 4a — Select merge blockers
+### Step 6a — Select merge blockers
 
 The `Merge Blockers` section at the top of the review is the **load-bearing
 output of the entire review**. It is a small, explicit set the author must
@@ -219,7 +402,7 @@ For each blocker, the entry must include: one-line summary, `file:line`,
 **why this blocks** (the concrete merge-time risk in one sentence), and the
 required fix.
 
-### Step 4b — Place everything else
+### Step 6b — Place everything else
 
 Non-blocking findings go into `Non-Blocking Findings`, grouped by category
 (Security, Correctness and design, Test coverage gaps, Documentation issues,
@@ -243,7 +426,7 @@ Routing from agents to non-blocking categories:
 Every finding includes: one-line description, `file:line` where applicable,
 and a suggested fix.
 
-### Step 4c — Verdict
+### Step 6c — Verdict
 
 The verdict is mechanical from the blockers section:
 
@@ -270,7 +453,7 @@ there are none) and tie the verdict to that set.
 
 ---
 
-## Phase 5: GitHub PR Comment
+## Phase 7: GitHub PR Comment
 
 After the full review is saved, generate the copy-paste PR comment using
 `templates/concise-feedback.md`. The block mirrors the blocker-first
@@ -280,7 +463,7 @@ the saved analysis file is on the reviewer's machine and cannot be referenced.
 ### Content rules
 
 1. **Lead with the verdict** in bold followed by a one- to three-sentence
-   framing of the PR and outcome. Same verdict computed in Phase 4c.
+   framing of the PR and outcome. Same verdict computed in Phase 6c.
 2. **Blocking section is the centerpiece.** List every blocker, with enough
    context for the author to act on it without seeing the local analysis
    file. Each blocker gets: a named header, file:line refs, the bug
@@ -338,7 +521,7 @@ Substitute `{{JIRA_TICKET}}` and emit the comment in **two places**:
 
 ---
 
-## Phase 6: Worktree Footer (chat only)
+## Phase 8: Worktree Footer (chat only)
 
 Read `templates/footer.txt`, substitute `{{WORKTREE}}`, `{{ORIGINAL_REPO}}`,
 `{{BRANCH_NAME}}`, `{{PR_NUMBER}}`, and print to chat. This footer is for
@@ -350,7 +533,7 @@ force-pushes from inside it.
 
 ---
 
-## Phase 7: Suggested Verification
+## Phase 9: Suggested Verification
 
 After delivering the review, suggest commands the reviewer can run locally:
 
@@ -372,7 +555,7 @@ After delivering the review, suggest commands the reviewer can run locally:
 - **Blocker discipline.** Merge blockers are a deliberate, named set chosen
   by the reviewer — not a function of severity tags or finding count. A PR
   with 30 non-blocking findings and 0 blockers still merges; non-blocking
-  items belong in a follow-up ticket. See Phase 4a for blocker criteria.
+  items belong in a follow-up ticket. See Phase 6a for blocker criteria.
 - **Template fidelity.** Agent prompts must be substituted, not paraphrased.
   Read the template, replace placeholders, dispatch verbatim.
 - **Read before flagging.** Every finding must be grounded in a file you
@@ -380,3 +563,10 @@ After delivering the review, suggest commands the reviewer can run locally:
 - **Worktree isolation.** All agents and review steps operate on
   `$WORKTREE`. The original repo is read-only except for writing the final
   review file to `$ORIGINAL_REPO/out/PR/`.
+- **One command per Bash call.** Prefer separate Bash invocations over
+  chained `cmd1 && cmd2` shells, especially during Phase 1 (worktree
+  setup) and Phase 6 (writing the review file). Each step's output should
+  be visible before the next runs, so the user can intervene if something
+  looks wrong. Reserve `&&` for genuinely atomic dependencies
+  (`mkdir foo && cd foo`); pipelines inside one logical operation
+  (`grep -r foo | wc -l`) are fine.

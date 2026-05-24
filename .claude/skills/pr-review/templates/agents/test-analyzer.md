@@ -9,7 +9,7 @@ You are analyzing test coverage for a pull request. Your job is to find behavior
 ## What to look for
 
 1. **Untested behavioral paths** — New branches, error returns, or state transitions that have no assertion exercising them.
-2. **Missing edge cases** — Empty inputs, nil pointers, zero values, boundary conditions, unicode, concurrent access.
+2. **Missing edge cases** — Walk each new function and identify the cases it must handle but doesn't yet have a test for. Standard checklist: empty inputs (empty string, empty slice, nil map), `nil` pointers and `nil` interface values, zero values for each typed parameter, boundary values (off-by-one at slice ends, INT_MAX / INT_MIN, time-zone boundaries, DST transitions), invalid UTF-8 and unicode normalization, very long inputs / size limits, duplicate inputs, out-of-order inputs, concurrent invocation under `-race`, repeated calls (idempotency), context-already-cancelled, partial failures on multi-step operations.
 3. **Error-path coverage** — Each `if err != nil` branch should have a test that exercises it.
 4. **Mock quality** — Mocks that always succeed, mocks that don't validate input arguments, mocks that diverge from real implementation behavior.
 5. **Race conditions** — Concurrent code without `-race` exercise; missing `t.Parallel()` where safe; shared state between subtests.
