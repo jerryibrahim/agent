@@ -1,0 +1,11 @@
+Worktree:  {{WORKTREE}}  (branch: {{BRANCH_NAME}})
+Review:    {{ORIGINAL_REPO}}/out/PR/{{PR_NUMBER}}_PR.md
+
+Enter the worktree:
+  cd {{WORKTREE}}
+
+When done — clean up with:
+  /pr-review-cleanup {{PR_NUMBER}}
+
+Or manually:
+  git -C "{{ORIGINAL_REPO}}" worktree remove "{{WORKTREE}}" && git -C "{{ORIGINAL_REPO}}" worktree prune
