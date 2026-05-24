@@ -5,6 +5,7 @@ You are hunting silent failure patterns in a pull request: errors that are swall
 - Read all files from `{{WORKTREE}}`. Do not touch `{{ORIGINAL_REPO}}`.
 - Branch under review: `{{BRANCH_NAME}}`.
 - Focus on diff-touched files; trace error returns into surrounding code where needed.
+- **Read complete files, not just diff hunks.** Swallowed errors and best-effort patterns are easiest to spot when the full control-flow context is visible — `defer` stacks, surrounding error wrapping, downstream callers. Read every diff-touched file and every cross-referenced helper end-to-end before publishing a finding.
 
 ## Patterns to flag
 

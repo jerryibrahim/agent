@@ -18,6 +18,7 @@ author chooses to address are resolved or tracked.
   - File: `<path>:<line>`
   - Why this blocks: <one sentence on the concrete merge-time risk: data loss, security exploit, regression, build break, etc.>
   - Required fix: <specific change required>
+  - Residual risk: <class vs. instance; remaining sub-cases by name; MVP vs. bulletproof>
 
 <If empty: "None — no blockers.">
 
@@ -28,6 +29,11 @@ author chooses to address are resolved or tracked.
 These do not block merge. The author may address them in this PR or track
 them in a follow-up ticket. They are grouped by category for triage, not
 by urgency.
+
+Each finding with a recommended fix should include a `Residual risk:`
+note when the fix is instance-only or known to leave sub-cases open.
+Findings that are pure observations (Strengths, naming) need no residual
+risk.
 
 ### Security (non-blocking)
 

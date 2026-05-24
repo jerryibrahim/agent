@@ -184,13 +184,19 @@ Required fix: new path file under `api/contract/paths/...`, path entry in
 `api/contract/openapi.yaml`, and bundle regeneration. Cite a sibling path
 file as a shape reference.
 
-### 3b. Helm sample-values sync
+### 3b. Helm chart safety
+
+Trigger: the diff modifies any file under `deploy/helm/` or `charts/`.
+
+Only run if the repo has Helm charts. Helm chart bugs almost always live
+in the **interactions between files**, not in any single file — single-
+file review is structurally insufficient. This section has two parts: a
+sample-values sync check and a cross-cutting interaction checklist.
+
+#### 3b.i — Sample-values sync
 
 Trigger: the diff modifies any `deploy/helm/**/values.yaml` keys — added,
 removed, renamed, or restructured.
-
-Only run if the repo has Helm charts. Detect via `deploy/helm/` or
-`charts/`.
 
 1. List every `values-*.yaml` file in the repo:
 
@@ -221,10 +227,56 @@ Common severity calls:
 - Renamed key with deprecation shim in `_helpers.tpl` → non-blocking; note
   the migration window.
 
-### 3c. DB migration numbering
+#### 3b.ii — Cross-cutting interaction checks
 
-Trigger: the diff adds a file under `migrations/`, `db/migrations/`, or
-`services/*/db/migrations/`.
+For ANY change under `deploy/helm/`, walk this checklist. Each item names
+an interaction-level bug class that single-file review misses.
+
+- **Namespace coupling** — Does the install flag (`--namespace`) match
+  `.Values.global.namespace`? Does the chart respect
+  `helm.Release.Namespace`? A mismatch silently splits resources across
+  namespaces and breaks intra-chart references.
+- **`--create-namespace` vs. `templates/namespace.yaml`** — If the
+  documented install uses `--create-namespace`, the chart's
+  `templates/namespace.yaml` must NOT also render a `Namespace`
+  document, or the second install in the same cluster conflicts with
+  the first. Check the `createNamespace` flag wiring.
+- **Image pull secret propagation** — `imagePullSecrets` defined at the
+  umbrella `global.*` must propagate into every subchart that needs it.
+  No subchart should hardcode a secret name; verify each subchart's
+  deployment / job / pod spec references the global value.
+- **Dependency build assumptions** — Does the chart assume
+  `helm dependency build` runs recursively (subcharts of subcharts), or
+  only on the umbrella? Validation scripts that build only umbrella
+  deps will fail when subchart helpers (e.g. `generic-service.service`)
+  are referenced by a sub-subchart. Inspect `Chart.yaml` dependency
+  trees and any CI / dev-scripts that build them.
+- **Release name vs. resource name** — Resources templated with
+  `{{ .Release.Name }}` collide if two releases share a namespace.
+  Resources hardcoded to a literal name collide with a second install
+  of the same chart. Flag either pattern when it's introduced or
+  changed.
+- **Hook ordering on subchart resources** — `helm.sh/hook` annotations
+  on subchart resources fire in **subchart-name alphabetical order**
+  under the umbrella. If the chart relies on a specific hook ordering
+  (e.g., a Secret must exist before a migration Job runs), document or
+  assert the assumption — alphabetical ordering can silently break the
+  intended sequence on a chart rename.
+- **Reloader / restart annotations** — If using a tool like Reloader,
+  the annotation list of Secrets / ConfigMaps to watch must be built
+  deterministically (Go template map iteration is non-deterministic;
+  `sortAlpha` is required for byte-stable manifests). PR #316 caught
+  this as a Copilot finding — worth a regression check on any new
+  Reloader annotation.
+
+### 3c. DB migration safety
+
+Trigger: the diff adds or modifies a file under `migrations/`,
+`db/migrations/`, or `services/*/db/migrations/`. This section covers two
+checks: structural integrity (numbering, pairing) and semantic safety
+(data-loss guards).
+
+#### 3c.i — Numbering and pairing
 
 1. List migration files on the branch grouped by service:
 
@@ -235,8 +287,7 @@ Trigger: the diff adds a file under `migrations/`, `db/migrations/`, or
 2. List migration numbers currently on `main` for the same service:
 
    ```bash
-   git -C "$WORKTREE" ls-tree -r --name-only main -- '<service>/migrations/' \
-     | sort
+   git -C "$WORKTREE" ls-tree -r --name-only main -- '<service>/migrations/'
    ```
 
 3. Check recently merged PRs for migration adds: `gh pr list --state merged
@@ -257,10 +308,70 @@ Trigger: the diff adds a file under `migrations/`, `db/migrations/`, or
    - **Missing `down.sql`** — if the convention requires paired
      up/down files, flag the missing partner.
 
-The migration-numbering check is the highest-value low-effort guard against
-silently merging two PRs that both try to claim the same number — the
-collision usually fails CI but only after merge. Catching it pre-merge
-avoids the cleanup PR.
+The numbering check is the highest-value low-effort guard against silently
+merging two PRs that both try to claim the same number — the collision
+usually fails CI but only after merge. Catching it pre-merge avoids the
+cleanup PR.
+
+#### 3c.ii — Data-loss guards
+
+For every migration file in the diff, scan for destructive DDL and verify
+each has an explicit guard. Destructive patterns to look for:
+
+| Pattern | Lossy when |
+|---------|-----------|
+| `DROP TABLE` | Always |
+| `DROP COLUMN` | Always |
+| `DROP INDEX` (unique) | Can permit duplicates afterwards |
+| `TRUNCATE` | Always |
+| `DELETE FROM` (unconditional) | Always |
+| `ALTER TABLE ... DROP CONSTRAINT` | If the constraint enforced integrity |
+| `ALTER COLUMN ... TYPE` | When target type is narrower (TEXT→VARCHAR(n), TIMESTAMPTZ→DATE, NUMERIC(p,s) narrowing) |
+| `ALTER COLUMN ... SET NOT NULL` | If existing rows can have NULL in that column |
+| `RENAME COLUMN` / `RENAME TABLE` | Code reading the old name breaks until redeployed |
+| `CREATE UNIQUE INDEX` on a populated column | Fails if duplicates exist; can wedge the migration |
+| Migration wraps multiple destructive ops in one transaction | If one fails, partial rollback semantics may surprise |
+
+For each destructive statement, look for at least one of these guards:
+
+1. **Archival** — an `INSERT INTO ..._archive` (or equivalent) immediately
+   before the destructive operation, preserving the rows being dropped.
+2. **Backfill before drop** — for column drops, a prior migration that
+   copied the data into a replacement column.
+3. **Two-phase deploy plan documented in the migration comment** — e.g.,
+   `-- Phase 1: add new column. Phase 2 (next release): backfill. Phase 3:
+   drop old column.` Each phase is a separate migration; the destructive
+   step lands only after callers stop using the old shape.
+4. **Pre-checks** — `SELECT COUNT(*) FROM ... WHERE <invariant>` (or
+   equivalent assertion) before the destructive op, ensuring the
+   destructive operation is safe in the current data state. For
+   `SET NOT NULL`: a `WHERE col IS NULL` count of 0; for
+   `CREATE UNIQUE INDEX`: a duplicates check.
+5. **Feature-flag staging** — code-side gate that stops writes to the
+   target shape before the migration runs.
+
+If a destructive statement has **no guard**, flag as a blocker:
+
+> **BLOCKER: Destructive migration without a guard.** `<file>:<line>` runs
+> `<statement>` against `<table>.<column>`. There is no archival step,
+> prior backfill, or two-phase plan documented. If the column/table is
+> still in use or holds non-empty data, this migration will permanently
+> destroy it. Required: <specific guard from the list above with the
+> shape it should take>.
+
+Additional checks:
+
+- **Migrations run inside a transaction by default in most tools, but DDL
+  with `CREATE INDEX CONCURRENTLY` (Postgres) cannot.** If the file uses
+  `CONCURRENTLY`, verify the tooling supports it (`migrate` requires a
+  special directive; sqlc-driven tooling may not).
+- **Schema changes to large tables** — `ADD COLUMN ... NOT NULL DEFAULT
+  <value>` rewrites the entire table in older Postgres versions. If the
+  target tables are known-large (e.g., `events`, `audit_log`), flag the
+  rewrite cost.
+- **`down.sql` symmetry** — if `up.sql` does a destructive op, the
+  `down.sql` cannot recover the lost data. Confirm the `down.sql` is
+  documented as "best-effort schema reversal only, not data recovery."
 
 ---
 
@@ -291,6 +402,35 @@ the staged/unstaged diff rather than the full branch diff.
 
 All agents must read files from `{{WORKTREE}}` only. The template's scope
 section enforces this — do not edit it out when substituting placeholders.
+
+### Reviewer conduct rules — apply to every agent
+
+These rules sit above any individual agent's focus area. They came out of
+a real post-mortem where four parallel review agents missed a bug class
+that a fifth pass caught — the difference was discipline, not capability.
+
+1. **Read complete files, not just diff hunks.** Read the FULL contents
+   of every file the diff touches AND every file the diff
+   cross-references (by path, function name, template name, or import).
+   Diff hunks omit surrounding control flow, helper definitions,
+   downstream callers, and defer / cleanup stacks. Findings drawn from a
+   hunk-only view systematically miss bugs whose root cause sits outside
+   the changed lines. If a finding cites a file the diff names, that
+   file must have been read end-to-end before publishing the finding.
+2. **Verify every external reference.** When a comment or identifier
+   names something external — vendor (`bitnami/postgres`), image
+   (`postgres:18-alpine`), library (`go-chi/chi/v5`), file path
+   (`templates/secret-auth.yaml`), function (`generic-service.service`),
+   line-range reference (`templates/secret-auth.yaml:67-70`), version
+   string — locate that reference in the codebase or documented reality
+   before accepting the comment as accurate. Comment-rot is silent: a
+   comment that misnames the actual image still parses, still passes
+   lint, and still misleads every future reader. Flag any name that
+   does not match what the codebase actually uses.
+3. **Helm chart changes require the cross-cutting checklist.** If the
+   diff touches `deploy/helm/`, single-file analysis is structurally
+   insufficient — Helm bugs live in the interactions between files.
+   Apply the Phase 3b.ii checklist beyond per-file review.
 
 ---
 
@@ -338,7 +478,57 @@ phase produces reviews that flag things the author has to push back on.
      each when more than one shape is defensible.
    - The regression test that should accompany the fix, named by file and
      by the invariant it pins.
-5. **Re-classify severity if the triage reveals new information.** If a
+   - **Residual-risk statement.** Every fix block must include one or
+     two sentences answering:
+     - **Class vs. instance**: does this fix close the entire failure
+       class, or only the cited instance?
+     - **Remaining sub-cases**: if sub-cases remain (sibling code paths,
+       edge inputs, race windows, other callers with the same shape),
+       name them.
+     - **MVP vs. bulletproof**: is this the minimum-viable patch that
+       unblocks the PR, or the bulletproof fix that prevents the class
+       from recurring? State which.
+
+     A fix without a residual-risk line implicitly claims "fix this and
+     the class is closed" — that implicit claim is how bug classes slip
+     past parallel agent review. Spelling it out forces a class-level
+     check before committing to the fix shape. Example:
+
+     > Residual risk: closes the cited handler. Two sibling handlers
+     > (`removeServiceAccount`, `removeGroup`) use the same
+     > `CountPoliciesByOrgAndRole` predicate and likely need the same
+     > fix — track as follow-up. The proposal here is MVP for this PR;
+     > the bulletproof fix is to fold the count helper into a shared
+     > `effectiveAdmins()` function used by all three handlers.
+5. **Validate every claim and every recommendation.** No guessing. Before
+   the finding ships, verify:
+   - **File:line citations** — open the file at the cited line and read
+     the line. Quote verbatim, do not paraphrase from memory.
+   - **Symbol references** (functions, methods, flags, env vars, config
+     keys, columns, tables) — grep the codebase to confirm the symbol
+     exists with the signature/usage you describe. Do not pattern-match
+     from training data.
+   - **Recommended fixes** — confirm the fix would actually apply. If
+     suggesting a SAVEPOINT-around-tx pattern, verify the tx helper
+     exposes raw `Exec`. If suggesting a Helm `fail` guard, verify the
+     template engine supports the syntax in this chart. If suggesting an
+     SQL clause, verify the column/table exists with the right type.
+   - **Pattern claims** ("the rest of the codebase does X") — grep before
+     asserting. "We do this elsewhere" carries weight only if you name
+     where.
+   - **Library / API calls** — confirm the function exists with the
+     claimed signature in the project's version. Use docs lookup (e.g.,
+     `context7`) when the symbol isn't already in the codebase.
+   - **Ticket IDs** (Jira, GitHub issues) — never invent. Reference only
+     IDs the user mentioned or that the PR/branch/commit metadata
+     contains. If recommending a follow-up ticket be created, phrase it
+     as a recommendation, not as a citation of an existing ticket.
+
+   If a claim cannot be verified, either drop it or mark it explicitly
+   ("I haven't confirmed `X` exists; if it doesn't, the alternative is
+   `Y`"). One fabricated citation flips the review's trust from
+   "actionable" to "needs re-verification" for every line.
+6. **Re-classify severity if the triage reveals new information.** If a
    `CRITICAL` agent finding turns out to be a project convention, drop
    it. If a `SUGGESTION` finding turns out to be a real bug after reading
    the surrounding code, promote it.
@@ -560,6 +750,14 @@ After delivering the review, suggest commands the reviewer can run locally:
   Read the template, replace placeholders, dispatch verbatim.
 - **Read before flagging.** Every finding must be grounded in a file you
   (or a subagent) actually read. Do not flag from guessed structure.
+- **No guessing — validate every claim and recommendation.** File:line
+  citations, function/flag/ticket references, pattern claims ("we do this
+  elsewhere"), and recommended fixes must each be verified against the
+  source (file actually opened, grep result, docs lookup). One fabricated
+  detail flips the entire review's trust from "actionable" to "needs
+  re-verification." When you can't verify something, drop it or flag the
+  uncertainty inline ("if `FooHelper` doesn't exist, the alternative is
+  ..."). See Phase 5 step 5 for the validation checklist.
 - **Worktree isolation.** All agents and review steps operate on
   `$WORKTREE`. The original repo is read-only except for writing the final
   review file to `$ORIGINAL_REPO/out/PR/`.

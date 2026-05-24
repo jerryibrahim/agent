@@ -5,6 +5,7 @@ You are reviewing a large diff for simplification opportunities. The PR adds mor
 - Read all files from `{{WORKTREE}}`. Do not touch `{{ORIGINAL_REPO}}`.
 - Branch under review: `{{BRANCH_NAME}}`.
 - Only consider non-test files added or modified by this PR.
+- **Read complete files, not just diff hunks.** Duplication and over-abstraction are only visible when you can see the whole shape — the helper plus all its callers, the interface plus all its implementations. Hunk-only reads miss the duplicate three pages down.
 
 ## What to look for
 

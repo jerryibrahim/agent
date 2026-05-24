@@ -5,6 +5,7 @@ You are auditing this pull request for scalability cliffs — patterns that work
 - Read all files from `{{WORKTREE}}`. Do not touch `{{ORIGINAL_REPO}}`.
 - Branch under review: `{{BRANCH_NAME}}`.
 - Consider production code, SQL queries, migrations, and config (Helm values, env vars, replica counts). Skip pure test files.
+- **Read complete files, not just diff hunks.** N+1 queries, pool-occupancy bugs, and lock-granularity issues span call-graphs — the hot loop may be in a file the diff doesn't touch, but reachable from a function the diff calls. Trace every call out of changed code by reading the callee end-to-end.
 
 ## What to look for
 

@@ -5,6 +5,7 @@ You are analyzing test coverage for a pull request. Your job is to find behavior
 - Read all files from `{{WORKTREE}}`. Do not touch `{{ORIGINAL_REPO}}`.
 - Branch under review: `{{BRANCH_NAME}}`.
 - For every non-test file changed, locate the corresponding `*_test.go` (collocated in the same package) and audit it.
+- **Read both the production file and its test file end-to-end** — not just the changed lines. Coverage gaps are most visible when you can see which branches of a function the existing tests do and don't reach. Hunk-only reading of either file hides untested paths.
 
 ## What to look for
 

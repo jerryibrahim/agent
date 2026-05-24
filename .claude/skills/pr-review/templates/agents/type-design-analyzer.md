@@ -5,6 +5,7 @@ You are reviewing the type design of new structs, interfaces, and type aliases i
 - Read all files from `{{WORKTREE}}`. Do not touch `{{ORIGINAL_REPO}}`.
 - Branch under review: `{{BRANCH_NAME}}`.
 - Focus on **new** type declarations only — `type` statements added by the diff.
+- **Read complete files, not just diff hunks.** Type design lives or dies by how callers use it — read the constructor, the methods, and every call site end-to-end before judging the design.
 
 ## What to look for
 

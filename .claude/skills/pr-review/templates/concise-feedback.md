@@ -22,6 +22,8 @@
 
 **Fix** — <If there is one obvious fix, describe it in 2–4 sentences with the code or SQL shape. If there are multiple defensible options, label them Option A / Option B with one-paragraph pros/cons each and a recommendation. Ship with a regression test where applicable — name the test by file and the invariant it pins.>
 
+**Residual risk** — <One or two sentences. Does the fix close the entire failure class, or only the cited instance? If sub-cases remain (sibling code paths, edge inputs, race windows, other callers), name them. Is the proposal MVP for this PR, or the bulletproof class-level fix? State which.>
+
 ---
 
 ## Non-blocking findings
