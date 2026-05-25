@@ -29,7 +29,9 @@ All content templates live in `templates/` (relative to this skill file):
 - `templates/footer.txt` — worktree footer printed to chat (not saved).
 
 Placeholders used across templates: `{{WORKTREE}}`, `{{ORIGINAL_REPO}}`,
-`{{BRANCH_NAME}}`, `{{PR_NUMBER}}`, `{{JIRA_TICKET}}`, `{{REVIEW_TYPE}}`.
+`{{BRANCH_NAME}}`, `{{PR_NUMBER}}`, `{{JIRA_TICKET}}`, `{{REVIEW_TYPE}}`,
+`{{REVIEW_FILENAME}}` (resolved in Phase 6 Save; carries the round suffix
+when applicable, e.g. `PR_316.md` for round 1, `PR_316_R2.md` for round 2).
 
 ---
 
@@ -636,9 +638,42 @@ there are none) and tie the verdict to that set.
    - From `$ARGUMENTS` if a PR number was provided.
    - Otherwise from `gh pr view --json number` on the current branch.
    - If no PR exists, use the branch slug as the filename.
-2. Write to `$ORIGINAL_REPO/out/PR/{{PR_NUMBER}}_PR.md` (create `out/PR/` if
-   needed). Always write to `$ORIGINAL_REPO`, never the worktree.
-3. The file is formatted for direct paste into a GitHub PR comment — no
+2. **Resolve the review round.** The base filename is
+   `PR_{{PR_NUMBER}}.md`. Repeat reviews of the same PR must NOT
+   overwrite a prior review — the prior file is the user's record of
+   what was raised in earlier rounds. Resolution algorithm:
+
+   - If `$ORIGINAL_REPO/out/PR/PR_{{PR_NUMBER}}.md` does **not** exist,
+     write to that path. This is round 1.
+   - Otherwise, find the highest existing round suffix:
+
+     ```bash
+     ls "$ORIGINAL_REPO/out/PR/" 2>/dev/null \
+       | grep -E "^PR_{{PR_NUMBER}}(_R[0-9]+)?\.md$"
+     ```
+
+     If only the base `PR_{{PR_NUMBER}}.md` exists, the new file is
+     `PR_{{PR_NUMBER}}_R2.md`. If `PR_{{PR_NUMBER}}_R2.md` exists, the
+     new file is `PR_{{PR_NUMBER}}_R3.md`. Continue incrementing until
+     you find an unused suffix.
+   - Capture the resolved filename as `{{REVIEW_FILENAME}}` for use in
+     the worktree footer (Phase 8).
+
+3. Write to `$ORIGINAL_REPO/out/PR/{{REVIEW_FILENAME}}` (create
+   `out/PR/` if needed). Always write to `$ORIGINAL_REPO`, never the
+   worktree.
+4. **Never overwrite an existing review file.** If the resolved
+   filename collides with anything that already exists on disk, that
+   is a bug in the resolution algorithm — re-run the suffix search.
+   Confirm-before-overwrite is not sufficient; the prior round is
+   load-bearing review history.
+5. When the file is a repeat round (suffix `_R2`, `_R3`, ...), the
+   header inside the review file should reflect the round in the
+   review-type line and the verdict rationale should explicitly
+   reference which prior-round findings have been addressed vs. still
+   open. The Phase 2 PR-conversation read provides the context for
+   this.
+6. The file is formatted for direct paste into a GitHub PR comment — no
    preamble, no chat footer.
 
 ---
@@ -714,9 +749,11 @@ Substitute `{{JIRA_TICKET}}` and emit the comment in **two places**:
 ## Phase 8: Worktree Footer (chat only)
 
 Read `templates/footer.txt`, substitute `{{WORKTREE}}`, `{{ORIGINAL_REPO}}`,
-`{{BRANCH_NAME}}`, `{{PR_NUMBER}}`, and print to chat. This footer is for
-the chat session only — it must **not** be written into the saved review
-file or the concise GitHub block.
+`{{BRANCH_NAME}}`, `{{PR_NUMBER}}`, and `{{REVIEW_FILENAME}}` (the path
+resolved in Phase 6 — base name for round 1, `_R2`/`_R3`/... for repeat
+rounds), and print to chat. This footer is for the chat session only —
+it must **not** be written into the saved review file or the concise
+GitHub block.
 
 Do not auto-remove the worktree. The user often rebases, fixes up, or
 force-pushes from inside it.

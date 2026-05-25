@@ -1,5 +1,5 @@
 Worktree:  {{WORKTREE}}  (branch: {{BRANCH_NAME}})
-Review:    {{ORIGINAL_REPO}}/out/PR/{{PR_NUMBER}}_PR.md
+Review:    {{ORIGINAL_REPO}}/out/PR/{{REVIEW_FILENAME}}
 
 Enter the worktree:
   cd {{WORKTREE}}
