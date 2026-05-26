@@ -473,6 +473,48 @@ phase produces reviews that flag things the author has to push back on.
    - **Keep** if codebase evidence confirms the issue; the surrounding
      code shows the failure mode is reachable; no countervailing
      convention exists.
+   - **Defendability gate** (applies to every keep decision): "Would I
+     defend this finding if the author pushed back?" If the honest
+     answer is "probably not — they'd have a fair counter," drop it.
+     This is the bar, not a tiebreaker. Especially aggressive on
+     `missing test coverage`, `could be tightened`, and style-adjacent
+     findings — these are the highest-noise classes.
+
+3a. **Test-coverage findings get an extra check.** For every "no test for
+    X" or "test could be tightened" finding, before keeping it, scan the
+    **entire test suite** for downstream coverage — not just the
+    colocated test file. The dominant false-positive shape for these
+    findings is "agent looked at `foo_test.go`, saw no test, but the
+    behavior is pinned by `integration/foo_flow_test.go` or by a
+    caller's tests."
+
+    ```bash
+    grep -rn "FunctionName\|sentinelError\|/api/v1/route" \
+      --include='*_test.go' --include='*_test.py' "$WORKTREE"
+    ```
+
+    Also check: golden / fixture files (`testdata/`), tests of upstream
+    callers (handlers / workflows / jobs), e2e tests under
+    `e2e/` or `integration/`. If the symbol is exercised anywhere in the
+    test tree (directly or via a caller), DROP the finding.
+
+3b. **"Could be tightened" findings get a semantic check.** Before
+    proposing to tighten an existing pattern, decode why the pattern
+    exists in its current shape. Common intentionally-loose patterns
+    that look "tightenable" but are actually correct:
+
+    - `pytest.xfail(strict=False)` — deliberately allows pass or fail
+      while a known-flaky behavior is being investigated; tightening
+      to `strict=True` is a regression, not an improvement.
+    - `t.Skip("flaky on CI")` — same shape in Go.
+    - `assert.Contains` instead of `assert.Equal` — intentional partial
+      match against output that has dynamic fields.
+    - "Best-effort" error handling that logs and continues — often
+      intentional for cleanup paths, metrics emission, cache warmup.
+    - Loose typing in transitional APIs being deprecated.
+
+    If you can't substantiate that the current shape is *wrong* (not
+    just looser than you'd write), drop the finding.
 4. **Attach a recommended fix to every kept finding.** "Add error
    handling" is not a fix — name the specific change:
    - The exact code or SQL diff (often 3–10 lines).
@@ -657,7 +699,7 @@ there are none) and tie the verdict to that set.
      new file is `PR_{{PR_NUMBER}}_R3.md`. Continue incrementing until
      you find an unused suffix.
    - Capture the resolved filename as `{{REVIEW_FILENAME}}` for use in
-     the worktree footer (Phase 8).
+     the worktree footer (Phase 9).
 
 3. Write to `$ORIGINAL_REPO/out/PR/{{REVIEW_FILENAME}}` (create
    `out/PR/` if needed). Always write to `$ORIGINAL_REPO`, never the
@@ -678,7 +720,107 @@ there are none) and tie the verdict to that set.
 
 ---
 
-## Phase 7: GitHub PR Comment
+## Phase 7: Honest Re-validation
+
+**Before the GitHub comment is generated, re-read the saved review file
+end-to-end and validate every finding honestly against the code.** Drop or
+soften the ones that are weak, wrong, or just style preferences. Then
+rewrite the file in place.
+
+This is a deliberate, adversarial pass — distinct from Phase 5 triage.
+Phase 5 asks "is this finding well-formed?" — it dedupes, fixes
+references, attaches recommended fixes. Phase 7 asks "is this finding
+*worth raising*?" — it is the quality gate between writing the review and
+shipping it to the team.
+
+The user's standing motivation: developers get annoyed when feedback
+cycles never end and a fraction of the feedback is false or low-value
+style nits. Each weak finding erodes the team's trust in the next one. A
+review that ships with 6 real findings is more useful than one that ships
+with 15 findings including 9 the author has to push back on.
+
+### Procedure
+
+1. **Open the saved file fresh, as if a different reviewer wrote it.**
+   Do not trust your prior read of the code. For every finding, re-open
+   the cited `file:line` from scratch and read enough surrounding context
+   to judge it on its own.
+2. **For each finding (blockers AND non-blockers), apply the honest
+   questions:**
+   - Is this a real bug or risk, or am I assuming behavior I haven't
+     verified?
+   - **Would I defend this finding if the author pushed back?** This is
+     the load-bearing question. If the honest answer is "probably not,"
+     drop the finding. Don't keep-and-soften — gone is gone.
+   - Is this a violated convention, or just a style I would have chosen
+     differently?
+   - Does the codebase handle this same situation differently elsewhere?
+     If yes, the finding probably contradicts established practice — drop
+     or reframe.
+   - **For "missing test" / "test could be tightened" findings: did I
+     grep the whole test suite for downstream coverage?** Looking only
+     at the colocated test file is the dominant false-positive shape.
+     A test in `integration/`, in a caller's test file, or in a golden
+     fixture often pins the behavior. If the symbol is exercised
+     anywhere in the test tree, drop. (See Phase 5 step 3a.)
+   - **For "could be tightened" findings: have I decoded why the
+     existing pattern is in its current shape?** Patterns like
+     `pytest.xfail(strict=False)`, `t.Skip(...)`, partial-match
+     assertions, "best-effort" error handling, and loose-typed
+     transitional APIs are often **intentionally** loose — tightening
+     them is a regression, not an improvement. If you can't substantiate
+     that the current shape is *wrong* (not just looser than you'd
+     write), drop.
+   - Is the recommended fix actually better, or just different?
+   - Would I be embarrassed if the author replied with "no, this is
+     intentional because X" and X is obvious from a wider read?
+3. **Classify each finding:**
+   - **KEEP** — concrete bug, risk, or violated convention; fix is sound.
+   - **SOFTEN** — real point but smaller than originally framed; demote
+     severity, rephrase, or move to a lower-priority section.
+   - **DROP** — style preference, contradicts codebase convention, can't
+     be substantiated against the code, or wrong on re-read.
+4. **Rewrite the saved review file in place.**
+   - Remove DROPPED findings entirely. Do not leave them in a softer
+     tone — gone is gone.
+   - Apply the new framing to SOFTENED findings. If the severity changed,
+     move them to the right section (e.g., from `Merge Blockers` to a
+     non-blocking subsection, or from `Important polish` to
+     `Suggestions`).
+   - If a blocker drops or softens out of the `Merge Blockers` section,
+     **recompute the verdict.** `Request changes` is only valid while at
+     least one blocker stands; otherwise flip to `Approve with comments`
+     or `Approve` per Phase 6c rules.
+   - Update the `Verdict Rationale` paragraph to reflect the actual final
+     set of blockers.
+
+### Discipline
+
+- **Be adversarial in good faith, not defensive.** The instinct will be
+  to justify what you wrote — resist it. The pass is honest only if it
+  is willing to drop findings.
+- **No second-pass guessing.** If you can't substantiate a finding
+  against the code on re-read, drop it. Do not paper over the gap with
+  "this might be an issue" hedging — that's the noise the team is asking
+  you to filter out.
+- **Style preferences are dropped, not softened to suggestions.** "I'd
+  have written it differently" is not a review finding. The codebase has
+  its conventions; respect them unless the diff actively breaks one.
+- **Class-level findings stay, instance-level style nits go.** A real
+  pattern violation (e.g., logging through a global logger when the
+  project uses scoped slog) is class-level and stays. A naming
+  preference for a single variable is style and goes.
+
+### Output of this phase
+
+The saved review file at `$ORIGINAL_REPO/out/PR/{{REVIEW_FILENAME}}` is
+overwritten with the re-validated version. Phase 8 (the GitHub comment)
+must derive from this re-validated file, not from the pre-revalidation
+draft.
+
+---
+
+## Phase 8: GitHub PR Comment
 
 After the full review is saved, generate the copy-paste PR comment using
 `templates/concise-feedback.md`. The block mirrors the blocker-first
@@ -746,7 +888,7 @@ Substitute `{{JIRA_TICKET}}` and emit the comment in **two places**:
 
 ---
 
-## Phase 8: Worktree Footer (chat only)
+## Phase 9: Worktree Footer (chat only)
 
 Read `templates/footer.txt`, substitute `{{WORKTREE}}`, `{{ORIGINAL_REPO}}`,
 `{{BRANCH_NAME}}`, `{{PR_NUMBER}}`, and `{{REVIEW_FILENAME}}` (the path
@@ -760,7 +902,7 @@ force-pushes from inside it.
 
 ---
 
-## Phase 9: Suggested Verification
+## Phase 10: Suggested Verification
 
 After delivering the review, suggest commands the reviewer can run locally:
 
